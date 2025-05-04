@@ -1,2 +1,8 @@
 nds_venv/
 venv/
+
+# Ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore output metadata in notebook files (but track the notebooks themselves)
+*.ipynb
