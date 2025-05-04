@@ -1,2 +1,4 @@
 nds_venv/
 venv/
+.idea/
+notebooks/.ipynb_checkpoints/
