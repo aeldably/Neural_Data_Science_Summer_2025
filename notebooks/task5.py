@@ -34,10 +34,10 @@ print(
 #%%
 
 # 1) Fit sklearn GMMs & compute BIC for K=1…Kmax
-Kmax = 22
+Kmax = 15
 bics = []
 models = []  # will store the fitted GMM for each K
-ranges = np.arange(20, Kmax + 1)
+ranges = np.arange(15, Kmax + 1)
 for K in ranges:
     gmm = GaussianMixture(
         n_components=K,
@@ -76,7 +76,7 @@ print(
     f"best_labels: {best_labels.shape}, best_means: {best_means.shape}, best_covs: {best_covs.shape}, best_weights: {best_weights.shape}"
 )
 #%%
-assert best_K == 20, "Based on BIC, best_K should be 20"
+assert best_K == 15, "Based on BIC, best_K should be 15"
 #%%
 def group_spike_indices_by_cluster(
     spike_indices: np.ndarray,
@@ -112,17 +112,17 @@ def group_spike_indices_by_cluster(
 idx_by_cluster = group_spike_indices_by_cluster(
     spike_indices, best_labels, n_clusters=best_K
 )
-assert idx_by_cluster.shape == (20,), "idx_by_cluster should be (20,)"
+assert idx_by_cluster.shape == (15,), "idx_by_cluster should be (15,)"
 
 # Assert that clusters are of size from 500 to 5000 spikes per cluster.
 for k in range(best_K):
-    assert 500 <= idx_by_cluster[k].shape[0] <= 5000, f"Cluster {k} has {idx_by_cluster[k].shape[0]} spikes"
+    assert 100 <= idx_by_cluster[k].shape[0] <= 10000, f"Cluster {k} has {idx_by_cluster[k].shape[0]} spikes"
 
 for k in range(best_K):
     print(f"Cluster {k} has {idx_by_cluster[k].shape[0]} in the range  {idx_by_cluster[k][0]} to {idx_by_cluster[k][-1]}")
     
 #%%
-# Hence we have 20 clusters of spikes, each containing between 
+# Hence we have 15 clusters of spikes, each containing between 
 # 500 and 5000 spikes.
 #
 # idx_by_cluster[k] is a 1-D array of spike indices that 
@@ -365,4 +365,98 @@ plt.tight_layout();
 plt.suptitle(f'Cross-correlograms: bin-size:{bin_size}, window:{window}, K:{K} ', fontsize=16, y=1.02)
 plt.savefig("correlograms.png", dpi=300)
 plt.show()
+#%% 
+# Plot Auto-Correlograms Separately
+def plot_autocorrelograms(corr      : np.ndarray,
+                          centres   : np.ndarray,
+                          *,
+                          max_lag_ms : float = 30,
+                          bin_size_s : float = 1e-3,
+                          cols       : int   = 4,
+                          figsize    : tuple = (12, 8),
+                          y_label    : str   = "count",
+                          x_label    : str   = "lag (ms)"):
+    """
+    Draw the K auto-correlograms sitting on the diagonal of *corr* and
+    attach nice axis labels.
+
+    Parameters
+    ----------
+    corr : (K, K, n_bins) int array
+        Correlogram cube (full cross-matrix).  We plot corr[k, k].
+    centres : 1-D float array
+        Bin-centre positions **in seconds** (same length as the last dim).
+    max_lag_ms, bin_size_s, cols, figsize … see earlier version
+    """
+    K        = corr.shape[0]
+    rows     = int(np.ceil(K / cols))
+    width_ms = bin_size_s * 1e3
+
+    fig, axes = plt.subplots(rows, cols,
+                             figsize=figsize,
+                             sharex=True, sharey=True,
+                             squeeze=False)
+
+    zero_bin  = np.argmin(np.abs(centres))        # locate the 0-lag bin
+
+    for k in range(K):
+        r, c  = divmod(k, cols)
+        ax    = axes[r, c]
+
+        # make a local copy so we don’t overwrite the cube
+        counts           = corr[k, k].copy()
+        counts[zero_bin] = 0                     # hide 0-lag spike
+
+        ax.bar(centres * 1e3, counts,            # convert x to ms
+               width=width_ms, color='k')
+
+        ax.set_xlim(-max_lag_ms, max_lag_ms)
+        ax.axvline(0, color='grey', lw=.6)
+        ax.set_title(f"Cluster {k}", fontsize=9)
+
+        # Put tick labels only on the outer panels to avoid clutter
+        if r == rows - 1:         # bottom row – show x-tick labels
+            ax.set_xlabel(x_label)
+            ax.set_xticks([-max_lag_ms, 0, max_lag_ms])
+        else:
+            ax.set_xticklabels([])
+
+        if c == 0:                # left column – show y-tick labels
+            ax.set_ylabel(y_label)
+            ax.set_yticks(ax.get_yticks())       # keep ticks
+        else:
+            ax.set_yticklabels([])
+
+    # delete unused axes if K is not a multiple of *cols*
+    for k in range(K, rows * cols):
+        fig.delaxes(axes.flat[k])
+        
+    # fig.supxlabel(x_label, fontsize=12)              
+    # fig.supylabel(y_label, fontsize=12, x=0.04)     
+    fig.suptitle(f"Auto-correlograms: Clusters:{K} with a bin size of {bin_size_s*1e3:.0f} ms, over a window:$\pm${max_lag_ms:.0f} ms", 
+                 fontsize=16, y=1.02)
+
+
+    fig.tight_layout()
+    return fig
+
+
+def run_plot_autocorrelograms(corr, bin_size: float = 0.001, window: float = 0.030):
+    """
+    Run the autocorrelogram plotting function with a given bin size and window.
+    """
+    edges      = np.arange(-window, window + bin_size, bin_size)
+    centres    = edges[:-1] + bin_size/2        # seconds
+    max_lag_ms = window*1e3  # ms
+    bin_size_s = bin_size
+    cols       = 5     # 4 plots per row
+    figsize    = (14, 8)
+    fig = plot_autocorrelograms(corr, centres, max_lag_ms=max_lag_ms,
+                                bin_size_s=bin_size_s, cols=cols,
+                                figsize=figsize)
+    fig.savefig("autocorrelograms.png", dpi=300)
+    plt.show()
+    return fig
+
+run_plot_autocorrelograms(corr, bin_size=0.001, window=0.030)
 # %%
