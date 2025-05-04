@@ -450,7 +450,7 @@ def run_plot_autocorrelograms(corr, bin_size: float = 0.001, window: float = 0.0
     max_lag_ms = window*1e3  # ms
     bin_size_s = bin_size
     cols       = 5     # 4 plots per row
-    figsize    = (14, 8)
+    figsize    = (18, 9)
     fig = plot_autocorrelograms(corr, centres, max_lag_ms=max_lag_ms,
                                 bin_size_s=bin_size_s, cols=cols,
                                 figsize=figsize)
