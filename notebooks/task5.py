@@ -2,10 +2,6 @@
 from sklearn.mixture import GaussianMixture
 import  numpy as np
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import make_pipeline
-
 #%%
 # replace by path to your solutions
 b = np.load("../data/nds_cl_1_features.npy")
@@ -16,6 +12,7 @@ w = np.load("../data/nds_cl_1_waveforms.npy")
 assert b.shape == (33983, 12), "b should be (33983, 12)"
 assert s.shape == (33983,), "s should be (33983,)"
 assert t.shape == (33983,), "t should be (33983,)"
+
 print(f"w.shape = {w.shape}")
 #%%
 assert w.shape == (33983, 30, 4), "w should be (33983, 30, 4)"
@@ -29,13 +26,12 @@ raw_wave_forms = (
 )
 spike_features = b  # (N, 12) - 12 features per spikes  (3 principal components \times 4 channes = 12)
 spike_indices = s  # 33,983 spikes, sample numbers in raw file – NOT 0…N-1 rows.
-spike_time_stamps = t  # in seconds of spikes.
+spike_seconds = t  # in seconds of spikes.
 print(
-    f"raw_wave_forms: {raw_wave_forms.shape}, spike_features: {spike_features.shape}, sample_indices: {spike_indices.shape}, spike_time_stamps: {spike_time_stamps.shape}"
+    f"raw_wave_forms: {raw_wave_forms.shape}, spike_features: {spike_features.shape}, sample_indices: {spike_indices.shape}, spike_seconds: {spike_seconds.shape}"
 )
 
 #%%
-from sklearn.mixture import GaussianMixture
 
 # 1) Fit sklearn GMMs & compute BIC for K=1…Kmax
 Kmax = 22
@@ -75,6 +71,7 @@ assert best_labels.shape == (33983,), "best_labels should be (33983,)"
 assert best_means.shape == (best_K, 12), "best_means should be (K, 12)"
 assert best_covs.shape == (best_K, 12, 12), "best_covs should be (K, 12, 12)"
 assert best_weights.shape == (best_K,), "best_weights should be (K,)"
+
 print(
     f"best_labels: {best_labels.shape}, best_means: {best_means.shape}, best_covs: {best_covs.shape}, best_weights: {best_weights.shape}"
 )
@@ -116,7 +113,8 @@ idx_by_cluster = group_spike_indices_by_cluster(
     spike_indices, best_labels, n_clusters=best_K
 )
 assert idx_by_cluster.shape == (20,), "idx_by_cluster should be (20,)"
-# assert that clusters are of size from 500 to 5000 spikes per cluster.
+
+# Assert that clusters are of size from 500 to 5000 spikes per cluster.
 for k in range(best_K):
     assert 500 <= idx_by_cluster[k].shape[0] <= 5000, f"Cluster {k} has {idx_by_cluster[k].shape[0]} spikes"
 
@@ -178,12 +176,36 @@ for k in range(best_K):
 # 
 # We can detect single unit clusters, by looking at auto-correlograms.
 #%%
-import numpy as np
 #%%
-def brute_hist(tA, tB, edges):
+def brute_histogram(tA, tB, edges):
     dt = (tB[:,None] - tA[None,:]).ravel()
     dt = dt[(dt != 0) & (dt >= edges[0]) & (dt < edges[-1])]
     return np.histogram(dt, bins=edges)[0]
+
+def simple_histogram(tA, tB, edges):
+    """
+    Return the histogram of (tB - tA) in the half-open bins given by *edges*.
+    •  tA, tB must be 1-D and sorted (ascending seconds)
+    •  dt = 0 is discarded ⇒ works for auto- and cross-correlograms
+    """
+    w    = edges[-1]            # half-width of the window  (edges are symmetric)
+    bw   = edges[1] - edges[0]  # bin width
+    hist = np.zeros(len(edges) - 1, dtype=int)
+
+    for t0 in tA:
+        # indices of spikes in tB that lie within [t0-w , t0+w]
+        lo = np.searchsorted(tB, t0 - w, side='left')
+        hi = np.searchsorted(tB, t0 + w, side='right')
+
+        # vectorised differences, remove zeros (auto-corr)
+        dt  = tB[lo:hi] - t0
+        dt  = dt[dt != 0]
+
+        # map each dt to a bin and accumulate
+        bins = ((dt - edges[0]) // bw).astype(int)
+        np.add.at(hist, bins, 1)
+
+    return hist
 
 # --- The function to test ---
 def fast_histogram(tA, tB, edges):
@@ -266,9 +288,29 @@ edges_auto = np.arange(-0.005, 0.005 + 0.001, 0.001)
 # Expected:   [1,     1,     1,     1,     0,     0,     1,     1,     1,     1]
 
 print("fast :", fast_histogram(tA_auto, tB_auto, edges_auto))
-print("brute:", brute_hist      (tA_auto, tB_auto, edges_auto))
-assert np.array_equal(fast_histogram(tA_auto, tB_auto, edges_auto), brute_hist(tA_auto, tB_auto, edges_auto)), "Test Case -1: Brute and fast histogram do not match!"
+print("brute:", brute_histogram      (tA_auto, tB_auto, edges_auto))
+assert np.array_equal(fast_histogram(tA_auto, tB_auto, edges_auto), brute_histogram(tA_auto, tB_auto, edges_auto)), "Test Case -1: Brute and fast histogram do not match!"
+#%%
+def test_random_histograms():
+    rng = np.random.default_rng(0)
+    tA = np.sort(rng.uniform(0, 2, 6_000))   
+    tB = np.sort(rng.uniform(0, 2, 6_000))   
 
+    bin_size = 0.001
+    window   = 0.050
+    
+    edges    = np.arange(-window, window + bin_size, bin_size)
+
+    h_fast   = fast_histogram   (tA, tB, edges)
+    h_brute  = brute_histogram (tA, tB, edges)
+    h_simple = simple_histogram(tA, tB, edges)
+
+    print(np.allclose(h_fast, h_simple))   
+    assert np.allclose(h_fast, h_simple), "Random histograms do not match, h_fast, h_simple!"
+    print(np.allclose(h_fast, h_brute))
+    assert np.allclose(h_fast, h_brute), "Random histograms do not match!, h_fast, h_brute"
+
+test_random_histograms()
 #%%
 expected_counts_auto = np.array([1, 1, 1, 1, 0, 0, 1, 1, 1, 1])
 result_auto = fast_histogram(tA_auto, tB_auto, edges_auto)
@@ -280,7 +322,7 @@ assert np.array_equal(result_auto, expected_counts_auto), "Test Case 1 Failed!"
 print("Test Case 1 Passed!\n")
 
 #%% # 0. choose bin size and window once
-bin_size = 0.002       # 1 ms
+bin_size = 0.001       # 1 ms
 window   = 0.030       # ±30 ms
 # TODO: OFF by ONE ?
 num_bins = int((2 * window) / bin_size)  # Ensures exact window coverage
@@ -322,5 +364,5 @@ for i in range(K):
 plt.tight_layout(); 
 plt.suptitle(f'Cross-correlograms: bin-size:{bin_size}, window:{window}, K:{K} ', fontsize=16, y=1.02)
 plt.savefig("correlograms.png", dpi=300)
-#plt.show()
+plt.show()
 # %%
