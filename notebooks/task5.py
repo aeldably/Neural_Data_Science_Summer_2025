@@ -357,7 +357,6 @@ times_by_cluster = [
     for idx in idx_by_cluster
 ]
 
-# 
 # 2. build the K × K correlogram matrix
 centres = edges[:-1] + bin_size/2
 
@@ -486,7 +485,8 @@ def run_plot_autocorrelograms(corr, bin_size: float = 0.001, window: float = 0.0
     return fig
 
 run_plot_autocorrelograms(corr, bin_size=bin_size, window=window)
-""" # %% Debugging Code only: 
+
+""" Debugging Code only: 
 # Quick check: How many intervals < 0.3 ms remain ?
 tau_merge = 0.3e-3          # 0.25 ms  (8 samples)
 times_by_cluster = [
@@ -496,5 +496,5 @@ times_by_cluster = [
 for k, t in enumerate(times_by_cluster):
     isi = np.diff(np.sort(t))*1e3
     print(f"cl{k}  ISI<0.3 ms: {np.sum(isi < 0.3)}")
-#%%
  """
+# %%
