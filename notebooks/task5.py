@@ -322,7 +322,7 @@ assert np.array_equal(result_auto, expected_counts_auto), "Test Case 1 Failed!"
 print("Test Case 1 Passed!\n")
 
 #%% # 0. choose bin size and window once
-bin_size = 0.001       # 1 ms
+bin_size = 0.0005       # .1 ms
 window   = 0.030       # ±30 ms
 # TODO: OFF by ONE ?
 num_bins = int((2 * window) / bin_size)  # Ensures exact window coverage
@@ -333,7 +333,11 @@ zero_lag_bin = np.searchsorted(edges, 0) - 1
 
 # 1. convert sample indices → seconds, if you haven’t yet
 fs = 30_000 # 30 kHz is the sampling rate
-times_by_cluster = [idx / fs for idx in idx_by_cluster]   # length = best_K
+times_by_cluster = []
+for idx in idx_by_cluster:
+    # keep only one entry per sample index
+    unique_idx = np.unique(idx)
+    times_by_cluster.append(unique_idx / fs)      # seconds
 
 # 2. build the K × K correlogram matrix
 centres = edges[:-1] + bin_size/2
@@ -458,5 +462,5 @@ def run_plot_autocorrelograms(corr, bin_size: float = 0.001, window: float = 0.0
     plt.show()
     return fig
 
-run_plot_autocorrelograms(corr, bin_size=0.001, window=0.030)
+run_plot_autocorrelograms(corr, bin_size=bin_size, window=window)
 # %%
