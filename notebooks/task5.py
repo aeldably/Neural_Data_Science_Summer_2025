@@ -179,7 +179,8 @@ for k in range(best_K):
 #%%
 def brute_histogram(tA, tB, edges):
     dt = (tB[:,None] - tA[None,:]).ravel()
-    dt = dt[(dt != 0) & (dt >= edges[0]) & (dt < edges[-1])]
+    tol = 1e-10  # tolerance for floating point comparison
+    dt = dt[(np.abs(dt) > tol) & (dt >= edges[0]) & (dt < edges[-1])]
     return np.histogram(dt, bins=edges)[0]
 
 def simple_histogram(tA, tB, edges):
@@ -199,7 +200,8 @@ def simple_histogram(tA, tB, edges):
 
         # vectorised differences, remove zeros (auto-corr)
         dt  = tB[lo:hi] - t0
-        dt  = dt[dt != 0]
+        tol = 1e-10  # tolerance for floating point comparison
+        dt  = dt[np.abs(dt) > tol]
 
         # map each dt to a bin and accumulate
         bins = ((dt - edges[0]) // bw).astype(int)
@@ -215,7 +217,6 @@ def fast_histogram(tA, tB, edges):
 
     Efficiently avoids calculating differences outside the window.
     Excludes zero differences (for autocorrelograms).
-    
     """
     # Assumption 1: Inputs are sorted
     assert np.all(np.diff(tA) >= 0), "tA must be sorted!"
@@ -251,7 +252,8 @@ def fast_histogram(tA, tB, edges):
             dt = tB[j] - t0
 
             # Exclude self-comparison (dt=0) and check if within overall edge bounds
-            if dt != 0 and dt >= edges[0] and dt < edges[-1]:
+            tol = 1e-10  # Tolerance for floating point comparison
+            if np.abs(dt) > tol and dt >= edges[0] and dt < edges[-1]:
                  # Calculate bin index based on edges
                  # This assumes uniform bins starting at edges[0]
                  bin_idx = int(np.floor((dt - edges[0]) / bin_width))
@@ -322,7 +324,7 @@ assert np.array_equal(result_auto, expected_counts_auto), "Test Case 1 Failed!"
 print("Test Case 1 Passed!\n")
 
 #%% # 0. choose bin size and window once
-bin_size = 0.0005       # .1 ms
+bin_size = 0.001       # 1 ms
 window   = 0.030       # ±30 ms
 # TODO: OFF by ONE ?
 num_bins = int((2 * window) / bin_size)  # Ensures exact window coverage
@@ -339,6 +341,23 @@ for idx in idx_by_cluster:
     unique_idx = np.unique(idx)
     times_by_cluster.append(unique_idx / fs)      # seconds
 
+def merge_close_events(t, tau=0.25e-3):
+    """Collapse events that lie closer than *tau* seconds."""
+    t = np.sort(t)
+    keep = [0]
+    for i in range(1, len(t)):
+        if t[i] - t[keep[-1]] > tau:
+            keep.append(i)
+    return t[keep]
+
+# TODO: Is this necessary? and is it messing with our interpretation?
+tau_merge = 0.3e-3  
+times_by_cluster = [
+    merge_close_events(idx / fs, tau=tau_merge)     # seconds
+    for idx in idx_by_cluster
+]
+
+# 
 # 2. build the K × K correlogram matrix
 centres = edges[:-1] + bin_size/2
 
@@ -356,10 +375,14 @@ np.save("corr_raw_counts.npy", corr)
 
 #%%
 fig, axes = plt.subplots(K, K, figsize=(3*K, 3*K))
+
 for i in range(K):
     for j in range(K):
         ax = axes[i, j]
-        ax.bar(centres*1e3, corr[i,j], width=bin_size*1e3, color='k')
+        counts = corr[i, j].copy()
+        centre_mask = np.abs(centres) < (bin_size/2)
+        counts[centre_mask] = 0 # hide 0-lag spike
+        ax.bar(centres*1e3, counts, width=bin_size*1e3, color='k')
         ax.set_xlim(-30, 30)
         ax.axvline(0, color='grey', lw=0.6)
         if i == K-1: ax.set_xlabel('lag (ms)')
@@ -401,7 +424,6 @@ def plot_autocorrelograms(corr      : np.ndarray,
                              sharex=True, sharey=True,
                              squeeze=False)
 
-    zero_bin  = np.argmin(np.abs(centres))        # locate the 0-lag bin
 
     for k in range(K):
         r, c  = divmod(k, cols)
@@ -409,7 +431,8 @@ def plot_autocorrelograms(corr      : np.ndarray,
 
         # make a local copy so we don’t overwrite the cube
         counts           = corr[k, k].copy()
-        counts[zero_bin] = 0                     # hide 0-lag spike
+        centre_mask = np.abs(centres) < (bin_size_s/2)
+        counts[centre_mask] = 0 # hide 0-lag spike
 
         ax.bar(centres * 1e3, counts,            # convert x to ms
                width=width_ms, color='k')
@@ -463,4 +486,15 @@ def run_plot_autocorrelograms(corr, bin_size: float = 0.001, window: float = 0.0
     return fig
 
 run_plot_autocorrelograms(corr, bin_size=bin_size, window=window)
-# %%
+""" # %% Debugging Code only: 
+# Quick check: How many intervals < 0.3 ms remain ?
+tau_merge = 0.3e-3          # 0.25 ms  (8 samples)
+times_by_cluster = [
+    merge_close_events(idx/fs, tau=tau_merge)
+    for idx in idx_by_cluster
+]
+for k, t in enumerate(times_by_cluster):
+    isi = np.diff(np.sort(t))*1e3
+    print(f"cl{k}  ISI<0.3 ms: {np.sum(isi < 0.3)}")
+#%%
+ """
