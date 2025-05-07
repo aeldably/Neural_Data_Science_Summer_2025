@@ -2,3 +2,5 @@ nds_venv/
 venv/
 .idea/
 notebooks/.ipynb_checkpoints/
+__pycache__/
+notebooks/__pycache__/oopsi.cpython-310.pyc
