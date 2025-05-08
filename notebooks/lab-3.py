@@ -113,6 +113,41 @@ resampled_gcamp_calcium = scipy.signal.decimate(
 fig, axs = plt.subplots(
     2, 2, figsize=(9, 5), height_ratios=[3, 1], layout="constrained"
 )
+#%% Resample the spikes
+
+def bin_spikes(spike_df: pd.DataFrame, factor: int) -> np.ndarray:
+    """Downsample spikes by summing over non-overlapping bins.
+
+    Parameters
+    ----------
+    spike_df : pd.DataFrame
+        Original spike data at high resolution (100 Hz).
+    factor : int
+        Downsampling factor (e.g. 4 for 100 Hz -> 25 Hz).
+
+    Returns
+    -------
+    np.ndarray
+        Binned spike matrix (n_bins, n_cells).
+    """
+    spike_array = spike_df.iloc[:, 1:].values  # Drop time/index column if present
+    n_bins = spike_array.shape[0] // factor
+    n_cells = spike_array.shape[1]
+    spike_array = spike_array[:n_bins * factor]  # Trim to full bins
+    binned = spike_array.reshape(n_bins, factor, n_cells).sum(axis=1)
+    return binned
+
+# Downsample factor: 100 Hz → 25 Hz → factor = 4
+downsample_factor = sampling_rate // new_sampling_rate
+
+# Binned spike arrays
+resampled_ogb_spikes = bin_spikes(ogb_spikes, downsample_factor)
+resampled_gcamp_spikes = bin_spikes(gcamp_spikes, downsample_factor)
+
+# Check shape
+print(f"Binned OGB spikes shape: {resampled_ogb_spikes.shape}")
+print(f"Binned GCaMP spikes shape: {resampled_gcamp_spikes.shape}")
+
 
 # --------------------
 # Plot OGB data (1 pt)
@@ -304,7 +339,7 @@ end = start + 100 * new_sampling_rate
 
 # Calcium and ground truth
 ca_ogb = resampled_ogb_calcium[start:end, cell_ogb]
-true_spikes_ogb = ogb_spikes.iloc[start:end, cell_ogb].values
+true_spikes_ogb = resampled_ogb_spikes[start:end, cell_ogb] 
 
 # Run deconvolution
 sp_hat_ogb = deconv_ca(ca_ogb, tau=tau_ogb, dt=dt)
@@ -337,7 +372,7 @@ cell_gcamp = 6
 tau_gcamp = 0.1  # seconds
 
 ca_gcamp = resampled_gcamp_calcium[start:end, cell_gcamp]
-true_spikes_gcamp = gcamp_spikes.iloc[start:end, cell_gcamp].values
+true_spikes_gcamp = resampled_gcamp_spikes[start:end, cell_gcamp] 
 
 # Run deconvolution
 sp_hat_gcamp = deconv_ca(ca_gcamp, tau=tau_gcamp, dt=dt)
@@ -362,20 +397,6 @@ axs[2].legend()
 plt.suptitle("GCaMP6f - Cell 6: Calcium, Deconv. Spikes, Ground Truth")
 plt.tight_layout()
 plt.show()
-
-#%%
-
-fig, axs = plt.subplots(
-    3, 1, figsize=(6, 4), height_ratios=[1, 1, 1], gridspec_kw=dict(hspace=0)
-)
-
-# OGB Cell
-
-fig, axs = plt.subplots(
-    3, 1, figsize=(6, 4), height_ratios=[1, 1, 1], gridspec_kw=dict(hspace=0)
-)
-# GCamp Cell
-
 
 #%% [markdown]
 # ## Task 3: Run more complex algorithm
