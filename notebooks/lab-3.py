@@ -114,8 +114,7 @@ fig, axs = plt.subplots(
     2, 2, figsize=(9, 5), height_ratios=[3, 1], layout="constrained"
 )
 #%% Resample the spikes
-
-def bin_spikes(spike_df: pd.DataFrame, factor: int) -> np.ndarray:
+def bin_spikes(spike_array, factor: int) -> np.ndarray:
     """Downsample spikes by summing over non-overlapping bins.
 
     Parameters
@@ -130,25 +129,29 @@ def bin_spikes(spike_df: pd.DataFrame, factor: int) -> np.ndarray:
     np.ndarray
         Binned spike matrix (n_bins, n_cells).
     """
-    spike_array = spike_df.iloc[:, 1:].values  # Drop time/index column if present
+    print(f"Original shape: {spike_array.shape}")
+    # spike_array = spike_df.iloc[:, 1:].values  # Drop time/index column if present
+    
     n_bins = spike_array.shape[0] // factor
     n_cells = spike_array.shape[1]
     spike_array = spike_array[:n_bins * factor]  # Trim to full bins
     binned = spike_array.reshape(n_bins, factor, n_cells).sum(axis=1)
     return binned
 
+#%%
 # Downsample factor: 100 Hz → 25 Hz → factor = 4
 downsample_factor = sampling_rate // new_sampling_rate
 
 # Binned spike arrays
-resampled_ogb_spikes = bin_spikes(ogb_spikes, downsample_factor)
-resampled_gcamp_spikes = bin_spikes(gcamp_spikes, downsample_factor)
+resampled_ogb_spikes = bin_spikes(ogb_spikes.iloc[:,1:].values, downsample_factor)
+resampled_gcamp_spikes = bin_spikes(gcamp_spikes.iloc[:, 1:].values, downsample_factor)
+
 
 # Check shape
 print(f"Binned OGB spikes shape: {resampled_ogb_spikes.shape}")
 print(f"Binned GCaMP spikes shape: {resampled_gcamp_spikes.shape}")
 
-
+#%%
 # --------------------
 # Plot OGB data (1 pt)
 # --------------------
@@ -523,19 +526,22 @@ for alg in ["deconv"]:
         ["OGB", "GCaMP"], [resampled_ogb_calcium, resampled_gcamp_calcium], 
         [resampled_ogb_spikes, resampled_gcamp_spikes]
     ):
-        
-        cells_to_consider = {
-            "OGB": "5",
-            "GCaMP": "6"
-        } 
-        
         # Resample the data
-        calcium = scipy.signal.decimate(calcium, sampling_rate // new_sampling_rate, axis=0)
-        calcium = calcium[:, int(cells_to_consider[indicator])]
+        #calcium = scipy.signal.decimate(calcium, sampling_rate // new_sampling_rate, axis=0)
+        #calcium = calcium[:, int(cells_to_consider[indicator])]
         # 
         print(f"Calcium shape: spikes")
+        print(f"Spikes shape: {spikes.shape}, calcium shape: {calcium.shape}")
         spikes = bin_spikes(spikes, downsample_factor)
-
+        print(f"Binned spikes shape: {spikes.shape}")
+        
+        evaluate_algorithm(
+                    calcium=calcium,
+                    spikes=spikes,
+                    algorithm=alg,
+                    tau=tau_ogb,
+                    dt=dt)
+    """
         # Evaluate the algorithm on OGB data
         eval_results_df = pd.concat(
             [
@@ -550,6 +556,7 @@ for alg in ["deconv"]:
             ],
             ignore_index=True,
         )
+        """
 
 
 # %%
