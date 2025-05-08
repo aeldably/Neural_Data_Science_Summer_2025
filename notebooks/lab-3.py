@@ -218,7 +218,6 @@ plt.show()
 
 # %%
 
-
 # %% [markdown]
 # ## Task 2: Simple deconvolution
 # 
@@ -281,6 +280,31 @@ def deconv_ca(ca: np.ndarray, tau: float, dt: float) -> np.ndarray:
     sp_hat = np.clip(sp_hat, 0, None)
     
     return sp_hat
+
+#%%
+def run_deconvolution(calcium: np.ndarray, 
+                      tau: float, dt: float) -> np.ndarray:
+    """
+    Run deconvolution on calcium data for all cells.
+
+    Parameters
+    ----------
+    calcium : np.ndarray
+        Calcium data of shape (time, n_cells).
+    tau : float
+        Decay constant for the algorithm.
+    dt : float
+        Sampling interval.
+
+    Returns
+    -------
+    np.ndarray
+        Inferred spike data of shape (time, n_cells).
+    """
+    inferred_spikes = np.zeros_like(calcium)
+    for cell in range(calcium.shape[1]):  # Iterate over each cell
+        inferred_spikes[:, cell] = deconv_ca(calcium[:, cell], tau=tau, dt=dt)
+    return inferred_spikes
 
 # %%
 # -------------------------
@@ -507,12 +531,9 @@ def evaluate_algorithm(
     """
     # Run the algorithm
     if algorithm == "deconv":
-        # For each cell, we need to run deconvolution
-        inferred_spikes = np.zeros_like(calcium)
-        for cell in range(calcium.shape[1]):  # Iterate over each cell
-            inferred_spikes[:, cell] = deconv_ca(calcium[:, cell], tau=tau, dt=dt)
+        inferred_spikes = run_deconvolution(calcium, tau=tau, dt=dt)
     elif algorithm == "oopsi":
-        inferred_spikes = oopsi.oopsi(calcium, tau=tau, dt=dt)
+        raise ValueError(f"Unsupported algorithm: {algorithm}")
     else:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
     
@@ -541,23 +562,17 @@ def evaluate_algorithm(
 
     return pd.DataFrame(results)
 
-#%%
 # %%
 # ----------------------------------------------------------
 # Evaluate the algorithms on the OGB and GCamp cells (2 pts)
 # ----------------------------------------------------------
 # Ensure dt, tau_ogb, and tau_gcamp are defined (likely from Task 2)
-# dt = 1 / new_sampling_rate # Should be 0.04
-# tau_ogb = 0.5
-# tau_gcamp = 0.1
-
 # List to store individual DataFrame results
 all_results_list = []
 
 algorithms_to_evaluate = ["deconv"]
 # If you implement oopsi and want to evaluate it, add "oopsi" to the list:
 # algorithms_to_evaluate = ["deconv", "oopsi"]
-
 
 for alg in algorithms_to_evaluate:
     for indicator, calcium_data, spike_data in zip(
@@ -575,6 +590,7 @@ for alg in algorithms_to_evaluate:
         # Ensure calcium and spike data have the same number of time points (rows)
         # This can be important if decimation and binning led to slight length differences
         min_rows = min(calcium_data.shape[0], spike_data.shape[0])
+        
         aligned_calcium = calcium_data[:min_rows, :]
         aligned_spikes = spike_data[:min_rows, :]
         
@@ -609,8 +625,6 @@ for alg in algorithms_to_evaluate:
             else:
                 print(f"No cells found for {indicator}. Skipping OOPSI.")
                 continue
-
-
         # Call the evaluation function
         # The `spikes` variable is already the correctly binned one (e.g., resampled_ogb_spikes)
         # DO NOT call bin_spikes(spikes, ...) here again.
@@ -631,7 +645,7 @@ else:
     eval_results_df = pd.DataFrame() # Create an empty DataFrame if no results
 
 print("\n--- Final Evaluation DataFrame ---")
-print(eval_results_df.head())
+print(eval_results_df)
 
 # Now eval_results_df is ready for Task 4 plotting
 # %%
@@ -639,28 +653,6 @@ print(eval_results_df.head())
 # Evaluate the algorithms on the OGB and GCamp cells (2 pts)
 # ----------------------------------------------------------
 # Run the evaluation. 
-eval_results_df = pd.DataFrame()
-
-for alg in ["deconv"]:
-    for indicator, calcium, spikes in zip(
-        ["OGB", "GCaMP"], [resampled_ogb_calcium, resampled_gcamp_calcium], 
-        [resampled_ogb_spikes, resampled_gcamp_spikes]
-    ):
-        # Resample the data
-        print(f"Calcium shape: spikes")
-        print(f"Spikes shape: {spikes.shape}, calcium shape: {calcium.shape}")
-        spikes = bin_spikes(spikes, downsample_factor)
-        print(f"Binned spikes shape: {spikes.shape}")
-        
-        evaluate_algorithm(
-                    calcium=calcium,
-                    spikes=spikes,
-                    algorithm=alg,
-                    tau=tau_ogb,
-                    dt=dt, 
-                    indicator=indicator
-                    )
-
 
 # %%
 # -------------------------------
