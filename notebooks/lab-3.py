@@ -507,7 +507,10 @@ def evaluate_algorithm(
     """
     # Run the algorithm
     if algorithm == "deconv":
-        inferred_spikes = deconv_ca(calcium, tau=tau, dt=dt)
+        # For each cell, we need to run deconvolution
+        inferred_spikes = np.zeros_like(calcium)
+        for cell in range(calcium.shape[1]):  # Iterate over each cell
+            inferred_spikes[:, cell] = deconv_ca(calcium[:, cell], tau=tau, dt=dt)
     elif algorithm == "oopsi":
         inferred_spikes = oopsi.oopsi(calcium, tau=tau, dt=dt)
     else:
@@ -537,6 +540,7 @@ def evaluate_algorithm(
         })
 
     return pd.DataFrame(results)
+
 # %%
 # ----------------------------------------------------------
 # Evaluate the algorithms on the OGB and GCamp cells (2 pts)
