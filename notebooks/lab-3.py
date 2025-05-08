@@ -441,25 +441,116 @@ fig, axs = plt.subplots(
 # %% [markdown]
 # ## Task 4: Evaluation of algorithms
 # 
-# To formally evaluate the algorithms on the two datasets run the deconvolution algorithm and the more complex one on all cells and compute the correlation between true and inferred spike trains. `DataFrames` from the `pandas` package are a useful tool for aggregating data and later plotting it. Create a dataframe with columns
+# To formally evaluate the algorithms on the two datasets run the 
+# deconvolution algorithm and the more complex one on all cells and 
+# compute the correlation between true and inferred spike trains. 
+# `DataFrames` from the `pandas` package are a useful tool for 
+# aggregating data and later plotting it. Create a dataframe 
+# with columns.
 # 
 # * algorithm
 # * correlation
 # * indicator
 # 
-# and enter each cell. Plot the results using `stripplot` and/or `boxplot` in the `seaborn` package. Note these functions provide useful options for formatting the
-# plots. See their documentation, i.e. `sns.boxplot?`.
+# and enter each cell. Plot the results using `stripplot` and/or `boxplot` 
+# in the `seaborn` package. Note these functions provide useful options for 
+# formatting the plots. See their documentation, i.e. `sns.boxplot?`.
 # 
 # *Grading: 5 pts*
-# 
+pd.set_option("display.max_columns", None)
+eval_results = pd.DataFrame(
+    {
+        "algorithm": ["deconv", "oopsi"],
+        "correlation": [None, None],
+        "indicator": ["OGB", "GCaMP"],
+    }
+)
+
 
 # %% [markdown]
-# First, evaluate on OGB data and create OGB dataframe. Then repeat for GCamp and combine the two dataframes.
+# First, evaluate on OGB data and create OGB dataframe. 
+# Then repeat for GCamp and combine the two dataframes.
+def evaluate_algorithm(
+    calcium: np.ndarray,
+    spikes: np.ndarray,
+    algorithm: str,
+    tau: float,
+    dt: float,
+) -> pd.DataFrame:
+    """Evaluate the algorithm on the calcium and spike data.
+
+    Parameters
+    ----------
+    calcium : np.ndarray
+        Calcium data.
+    spikes : np.ndarray
+        Spike data.
+    algorithm : str
+        Algorithm to use ("deconv" or "oopsi").
+    tau : float
+        Decay constant for the algorithm.
+    dt : float
+        Sampling interval.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with correlation results.
+    """
+    # Run the algorithm
+    if algorithm == "deconv":
+        inferred_spikes = deconv_ca(calcium, tau=tau, dt=dt)
+    elif algorithm == "oopsi":
+        inferred_spikes = oopsi.oopsi(calcium, tau=tau, dt=dt)
+    
+    # Compute correlation.
+    correlation = np.corrcoef(spikes.flatten(), 
+                              inferred_spikes.flatten())[0, 1]
+    
+    return pd.DataFrame({"algorithm": [algorithm], 
+                         "correlation": [correlation]})
+
 
 # %%
 # ----------------------------------------------------------
 # Evaluate the algorithms on the OGB and GCamp cells (2 pts)
 # ----------------------------------------------------------
+# Run the evaluation. 
+eval_results_df = pd.DataFrame()
+
+for alg in ["deconv"]:
+    for indicator, calcium, spikes in zip(
+        ["OGB", "GCaMP"], [resampled_ogb_calcium, resampled_gcamp_calcium], 
+        [resampled_ogb_spikes, resampled_gcamp_spikes]
+    ):
+        
+        cells_to_consider = {
+            "OGB": "5",
+            "GCaMP": "6"
+        } 
+        
+        # Resample the data
+        calcium = scipy.signal.decimate(calcium, sampling_rate // new_sampling_rate, axis=0)
+        calcium = calcium[:, int(cells_to_consider[indicator])]
+        # 
+        print(f"Calcium shape: spikes")
+        spikes = bin_spikes(spikes, downsample_factor)
+
+        # Evaluate the algorithm on OGB data
+        eval_results_df = pd.concat(
+            [
+                eval_results_df,
+                evaluate_algorithm(
+                    calcium=calcium,
+                    spikes=spikes,
+                    algorithm=alg,
+                    tau=tau_ogb,
+                    dt=dt,
+                ),
+            ],
+            ignore_index=True,
+        )
+
 
 # %%
 # -------------------------------
@@ -467,8 +558,8 @@ fig, axs = plt.subplots(
 # -------------------------------
 
 # %% [markdown]
-# Combine both dataframes. Plot the performance of each indicator and algorithm. You should only need a single plot for this.
-
+# Combine both dataframes. Plot the performance of each indicator and algorithm. 
+# You should only need a single plot for this.
 # %%
 # ----------------------------------------------------------------------------
 # Create Strip/Boxplot for both cells and algorithms Cell as described. (1 pt)
