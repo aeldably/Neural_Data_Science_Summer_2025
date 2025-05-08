@@ -389,7 +389,7 @@ axs[2].legend()
 
 plt.suptitle("OGB - Cell 5: Calcium, Deconv. Spikes, Ground Truth")
 plt.tight_layout()
-plt.savefig("ogb_deconv.png", dpi=300)
+plt.savefig("../plots/ogb_deconv.png", dpi=300)
 plt.show()
 
 
@@ -423,7 +423,7 @@ axs[2].legend()
 
 plt.suptitle("GCaMP6f - Cell 6: Calcium, Deconv. Spikes, Ground Truth")
 plt.tight_layout()
-plt.savefig("gcamp_deconv.png", dpi=300)
+plt.savefig("../plots/gcamp_deconv.png", dpi=300)
 plt.show()
 
 #%% [markdown]
@@ -440,7 +440,8 @@ plt.show()
 # 
 
 # %%
-# run this cell to download the oopsi.py file and put it in the same folder as this notebook
+# run this cell to download the oopsi.py file and put it in the 
+# same folder as this notebook
 !wget https://raw.githubusercontent.com/liubenyuan/py-oopsi/master/oopsi.py
 import oopsi
 
@@ -731,7 +732,7 @@ else:
         if ax.get_legend() is not None:
             ax.get_legend().remove()
 
-plt.savefig("evaluation_results.png", dpi=300)
+plt.savefig("../plots/evaluation_results.png", dpi=300)
 plt.show()
 
 print("\n--- Final Evaluation DataFrame Used for Plot ---")
