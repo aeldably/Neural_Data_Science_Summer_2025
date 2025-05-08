@@ -99,10 +99,12 @@ import scipy.signal
 sampling_rate = 100  # Hz
 # Resample to 25 Hz
 new_sampling_rate = 25  # Hz
+
 # Resample the data
 resampled_ogb_calcium = scipy.signal.decimate(
     ogb_calcium.iloc[:, 1:].values, sampling_rate // new_sampling_rate, axis=0
 )
+
 resampled_gcamp_calcium = scipy.signal.decimate(
     gcamp_calcium.iloc[:, 1:].values, sampling_rate // new_sampling_rate, axis=0
 )
@@ -127,12 +129,14 @@ print(f"Duration of resampled OGB calcium: {len(time) / new_sampling_rate} secon
 print(f"Number of samples in OGB calcium: {len(resampled_ogb_calcium[ogb_cell, ogb_start:ogb_end])}")
 
 assert len(resampled_ogb_calcium[ogb_start:ogb_end, ogb_cell]) == 10 * new_sampling_rate # 10 seconds
+
 axs[0, 0].plot(
     np.arange(ogb_start, ogb_end) / new_sampling_rate,
     resampled_ogb_calcium[ogb_start:ogb_end, ogb_cell],
     label=f"OGB-1, Cell {ogb_cell}",
 )
 # Plot spikes
+# TODO: Need to make sure the spikes are aligned with the calcium signal.
 axs[1, 0].plot(
     np.arange(ogb_start, ogb_end) / new_sampling_rate,
     ogb_spikes.iloc[ogb_start:ogb_end, ogb_cell],
@@ -144,7 +148,6 @@ axs[1, 0].plot(
 # ----------------------
 # Plot GCamp data (1 pt)
 # ----------------------
-
 gcamp_cell = 6
 gcamp_start = 1000
 gcamp_end = gcamp_start + 10 * new_sampling_rate
