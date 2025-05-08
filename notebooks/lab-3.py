@@ -561,7 +561,6 @@ def evaluate_algorithm(
         })
 
     return pd.DataFrame(results)
-
 # %%
 # ----------------------------------------------------------
 # Evaluate the algorithms on the OGB and GCamp cells (2 pts)
