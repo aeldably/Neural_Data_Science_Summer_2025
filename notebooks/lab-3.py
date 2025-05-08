@@ -634,6 +634,7 @@ for alg in algorithms_to_evaluate:
             dt=dt,
             indicator=indicator
         )
+
         all_results_list.append(df_result)
 
 # Concatenate all results into the final DataFrame
@@ -667,6 +668,73 @@ print(eval_results_df)
 # ----------------------------------------------------------------------------
 
 fig, ax = plt.subplots(figsize=(6, 6), layout="constrained")
+# %%
+# ----------------------------------------------------------------------------
+# Create Strip/Boxplot for both cells and algorithms Cell as described. (1 pt)
+# Describe and explain the results briefly. (1 pt)
+# ----------------------------------------------------------------------------
+fig, ax = plt.subplots(figsize=(8, 7), layout="constrained") # Increased figure size for better readability
+# Check if the DataFrame is empty or if the 'correlation' column is all NaN
+if eval_results_df.empty or eval_results_df['correlation'].isnull().all():
+    ax.text(0.5, 0.5, "No valid correlation data to plot.",
+            horizontalalignment='center', verticalalignment='center',
+            transform=ax.transAxes, fontsize=12, color='red')
+    ax.set_title("Evaluation of Spike Inference Algorithms")
+    ax.set_xlabel("Indicator")
+    ax.set_ylabel("Correlation")
+else:
+    # Create a combined boxplot and stripplot
+    sns.boxplot(
+        x="indicator",
+        y="correlation",
+        hue="algorithm",  # Even if only one algorithm, hue makes it expandable
+        data=eval_results_df,
+        ax=ax,
+        palette="Set2",
+        fliersize=0 # Hide outlier markers from boxplot as stripplot will show all points
+    )
+    sns.stripplot(
+        x="indicator",
+        y="correlation",
+        hue="algorithm", # Even if only one algorithm, hue makes it expandable
+        data=eval_results_df,
+        ax=ax,
+        dodge=True, # Dodge points along the categorical axis for hue
+        jitter=True, # Add some jitter to prevent points from overlapping
+        alpha=0.7,
+        palette="Set2",
+        linewidth=0.5,
+        edgecolor='gray'
+    )
 
+    ax.set_title("Performance of Spike Inference Algorithms")
+    ax.set_xlabel("Calcium Indicator")
+    ax.set_ylabel("Correlation (Inferred vs. True Spikes)")
+    ax.grid(axis="y", linestyle="--", alpha=0.7)
 
+    # Improve legend if there are multiple algorithms, or simplify if only one
+    handles, labels = ax.get_legend_handles_labels()
+    # Depending on how many algorithms, handles/labels might be duplicated.
+    # Take unique labels. For stripplot and boxplot, hue creates two sets of legend items.
+    # We only need one set for the legend.
+    if handles: # Check if there are any legend handles
+        # A common way to get unique legend items when hue is used for both box and strip plots
+        # is to take the first half (or second half) if they are duplicated.
+        # For a single algorithm, this also works.
+        unique_handles = handles[:len(handles)//2]
+        unique_labels = labels[:len(labels)//2]
+        if not unique_handles: # If the above logic fails (e.g. only one type of plot had hue)
+            unique_handles = handles
+            unique_labels = labels
+        ax.legend(unique_handles, unique_labels, title="Algorithm", loc="best")
+    else:
+        # If no legend handles (e.g., no 'hue' used or no data), remove any potential empty legend
+        if ax.get_legend() is not None:
+            ax.get_legend().remove()
 
+plt.savefig("evaluation_results.png", dpi=300)
+plt.show()
+
+print("\n--- Final Evaluation DataFrame Used for Plot ---")
+print(eval_results_df)
+# %%
