@@ -215,7 +215,7 @@ def deconv_ca(ca: np.ndarray, tau: float, dt: float) -> np.ndarray:
     # --------------------------------------------
     # apply devonvolution to calcium signal (1 pt)
     # --------------------------------------------
-
+    
     return sp_hat
 
 # %%
