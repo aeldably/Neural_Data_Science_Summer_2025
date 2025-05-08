@@ -131,7 +131,6 @@ def bin_spikes(spike_array, factor: int) -> np.ndarray:
     """
     print(f"Original shape: {spike_array.shape}")
     # spike_array = spike_df.iloc[:, 1:].values  # Drop time/index column if present
-    
     n_bins = spike_array.shape[0] // factor
     n_cells = spike_array.shape[1]
     spike_array = spike_array[:n_bins * factor]  # Trim to full bins
@@ -366,6 +365,7 @@ axs[2].legend()
 
 plt.suptitle("OGB - Cell 5: Calcium, Deconv. Spikes, Ground Truth")
 plt.tight_layout()
+plt.savefig("ogb_deconv.png", dpi=300)
 plt.show()
 
 
@@ -399,6 +399,7 @@ axs[2].legend()
 
 plt.suptitle("GCaMP6f - Cell 6: Calcium, Deconv. Spikes, Ground Truth")
 plt.tight_layout()
+plt.savefig("gcamp_deconv.png", dpi=300)
 plt.show()
 
 #%% [markdown]
@@ -479,41 +480,63 @@ def evaluate_algorithm(
     algorithm: str,
     tau: float,
     dt: float,
+    indicator: str  # Add this to label which dataset (OGB or GCaMP)
 ) -> pd.DataFrame:
-    """Evaluate the algorithm on the calcium and spike data.
+    """
+    Evaluate the algorithm on calcium and spike data for all cells.
 
     Parameters
     ----------
     calcium : np.ndarray
-        Calcium data.
+        Calcium data of shape (time, n_cells).
     spikes : np.ndarray
-        Spike data.
+        Binned spike data of shape (time, n_cells).
     algorithm : str
         Algorithm to use ("deconv" or "oopsi").
     tau : float
         Decay constant for the algorithm.
     dt : float
         Sampling interval.
+    indicator : str
+        Indicator label (e.g. "OGB" or "GCaMP").
 
     Returns
     -------
     pd.DataFrame
-        DataFrame with correlation results.
+        DataFrame with correlation results for each cell.
     """
     # Run the algorithm
     if algorithm == "deconv":
         inferred_spikes = deconv_ca(calcium, tau=tau, dt=dt)
     elif algorithm == "oopsi":
         inferred_spikes = oopsi.oopsi(calcium, tau=tau, dt=dt)
+    else:
+        raise ValueError(f"Unsupported algorithm: {algorithm}")
     
-    # Compute correlation.
-    correlation = np.corrcoef(spikes.flatten(), 
-                              inferred_spikes.flatten())[0, 1]
+    # Ensure same shape
+    assert inferred_spikes.shape == spikes.shape, \
+        f"Shape mismatch: inferred {inferred_spikes.shape}, true {spikes.shape}"
     
-    return pd.DataFrame({"algorithm": [algorithm], 
-                         "correlation": [correlation]})
+    # Compute correlation for each cell
+    results = []
+    for cell in range(spikes.shape[1]):
+        true_cell = spikes[:, cell]
+        inferred_cell = inferred_spikes[:, cell]
 
+        # Optional: handle NaNs if any
+        if np.isnan(true_cell).any() or np.isnan(inferred_cell).any():
+            corr = np.nan
+        else:
+            corr = np.corrcoef(true_cell, inferred_cell)[0, 1]
 
+        results.append({
+            "algorithm": algorithm,
+            "correlation": corr,
+            "indicator": indicator,
+            "cell": cell
+        })
+
+    return pd.DataFrame(results)
 # %%
 # ----------------------------------------------------------
 # Evaluate the algorithms on the OGB and GCamp cells (2 pts)
@@ -527,9 +550,6 @@ for alg in ["deconv"]:
         [resampled_ogb_spikes, resampled_gcamp_spikes]
     ):
         # Resample the data
-        #calcium = scipy.signal.decimate(calcium, sampling_rate // new_sampling_rate, axis=0)
-        #calcium = calcium[:, int(cells_to_consider[indicator])]
-        # 
         print(f"Calcium shape: spikes")
         print(f"Spikes shape: {spikes.shape}, calcium shape: {calcium.shape}")
         spikes = bin_spikes(spikes, downsample_factor)
@@ -540,23 +560,9 @@ for alg in ["deconv"]:
                     spikes=spikes,
                     algorithm=alg,
                     tau=tau_ogb,
-                    dt=dt)
-    """
-        # Evaluate the algorithm on OGB data
-        eval_results_df = pd.concat(
-            [
-                eval_results_df,
-                evaluate_algorithm(
-                    calcium=calcium,
-                    spikes=spikes,
-                    algorithm=alg,
-                    tau=tau_ogb,
-                    dt=dt,
-                ),
-            ],
-            ignore_index=True,
-        )
-        """
+                    dt=dt, 
+                    indicator=indicator
+                    )
 
 
 # %%
