@@ -185,12 +185,22 @@ plt.show()
 # %% [markdown]
 # ## Task 2: Simple deconvolution
 # 
-# It is clear from the above plots that the calcium events happen in relationship to the spikes. As a first simple algorithm implement a deconvolution approach like presented in the lecture in the function `deconv_ca`. Assume an exponential kernel where the decay constant depends on the indicator ($\tau_{OGB}= 0.5 s$, $\tau_{GCaMP}= 0.1 s$). Note there can be no negative rates! Plot the kernel as well as an example cell with true and deconvolved spike rates. Scale the signals such as to facilitate comparisons. You can use functions from `scipy` for this. Explain your results and your choice of kernel.
+# It is clear from the above plots that the calcium events 
+# happen in relationship to the spikes. As a first simple 
+# algorithm implement a deconvolution approach like presented in the 
+# lecture in the function `deconv_ca`. 
+#
+# Assume an exponential kernel where the decay constant depends on the 
+# indicator ($\tau_{OGB}= 0.5 s$, $\tau_{GCaMP}= 0.1 s$). 
+#
+# Note there can be no negative rates! Plot the kernel as 
+# well as an example cell with true and deconvolved spike rates. 
+# 
+# Scale the signals such as to facilitate comparisons. You can use functions from `scipy` for this. Explain your results and your choice of kernel.
 # 
 # *Grading: 6 pts*
 # 
-
-# %%
+#%%
 def deconv_ca(ca: np.ndarray, tau: float, dt: float) -> np.ndarray:
     """Compute the deconvolution of the calcium signal.
 
@@ -211,10 +221,27 @@ def deconv_ca(ca: np.ndarray, tau: float, dt: float) -> np.ndarray:
 
     sp_hat: np.array
     """
+    # --------------------------------------------
+    # Apply de-convolution to calcium signal (1 pt)
+    # --------------------------------------------
+    # Define kernel duration to cover 5*tau
+    kernel_len = int(np.ceil(5 * tau / dt))
+    t = np.arange(kernel_len) * dt
+    
+    # Create exponential decay kernel
+    kernel = np.exp(-t / tau)
+    
+    # Normalize kernel to have unit area
+    kernel /= kernel.sum()
+    
+    # Use scipy to deconvolve
+    sp_hat, _ = signal.deconvolve(ca, kernel)
 
-    # --------------------------------------------
-    # apply devonvolution to calcium signal (1 pt)
-    # --------------------------------------------
+    # Pad the output to match original size (deconvolve returns shorter output)
+    sp_hat = np.pad(sp_hat, (0, ca.shape[0] - sp_hat.shape[0]), mode="constant")
+
+    # Clip negative values
+    sp_hat = np.clip(sp_hat, 0, None)
     
     return sp_hat
 
@@ -223,7 +250,29 @@ def deconv_ca(ca: np.ndarray, tau: float, dt: float) -> np.ndarray:
 # Plot the 2 kernels (1 pt)
 # -------------------------
 fig, ax = plt.subplots(figsize=(6, 5), layout="constrained")
+# Plotting exponential kernels for OGB and GCaMP
+dt = 1 / new_sampling_rate  # 0.04 s
+t_max = 2.0  # seconds
+t = np.arange(0, t_max, dt)
 
+tau_ogb = 0.5
+tau_gcamp = 0.1
+
+kernel_ogb = np.exp(-t / tau_ogb)
+kernel_ogb /= kernel_ogb.sum()
+
+kernel_gcamp = np.exp(-t / tau_gcamp)
+kernel_gcamp /= kernel_gcamp.sum()
+
+plt.figure(figsize=(6, 4))
+plt.plot(t, kernel_ogb, label="OGB-1 Kernel (τ = 0.5s)")
+plt.plot(t, kernel_gcamp, label="GCaMP6f Kernel (τ = 0.1s)")
+plt.xlabel("Time (s)")
+plt.ylabel("Normalized kernel")
+plt.title("Exponential Decay Kernels")
+plt.legend()
+plt.grid(True)
+plt.show()
 
 # %% [markdown]
 # ### Questions (1 pt)
@@ -244,6 +293,77 @@ fig, ax = plt.subplots(figsize=(6, 5), layout="constrained")
 # Compare true and deconvolved spikes rates for the OGB and GCamP cells.
 # What do you notice? Why is that? (3 pts)
 # ----------------------------------------------------------------------
+# Sampling parameters
+dt = 1 / new_sampling_rate  # 0.04 s
+
+# OGB example: cell 5
+cell_ogb = 5
+tau_ogb = 0.5  # seconds
+start = 1000
+end = start + 100 * new_sampling_rate
+
+# Calcium and ground truth
+ca_ogb = resampled_ogb_calcium[start:end, cell_ogb]
+true_spikes_ogb = ogb_spikes.iloc[start:end, cell_ogb].values
+
+# Run deconvolution
+sp_hat_ogb = deconv_ca(ca_ogb, tau=tau_ogb, dt=dt)
+
+# Plotting
+fig, axs = plt.subplots(3, 1, figsize=(8, 5), sharex=True)
+time = np.arange(start, end) / new_sampling_rate
+
+axs[0].plot(time, ca_ogb, label="Calcium")
+axs[0].set_ylabel("Ca")
+axs[0].legend()
+
+axs[1].plot(time, sp_hat_ogb, label="Deconv. spikes", color="green")
+axs[1].set_ylabel("Deconv")
+axs[1].legend()
+
+axs[2].plot(time, true_spikes_ogb, label="True spikes", color="orange", alpha=0.6)
+axs[2].set_ylabel("True")
+axs[2].set_xlabel("Time (s)")
+axs[2].legend()
+
+plt.suptitle("OGB - Cell 5: Calcium, Deconv. Spikes, Ground Truth")
+plt.tight_layout()
+plt.show()
+
+
+#%%
+# GCaMP example: cell 6
+cell_gcamp = 6
+tau_gcamp = 0.1  # seconds
+
+ca_gcamp = resampled_gcamp_calcium[start:end, cell_gcamp]
+true_spikes_gcamp = gcamp_spikes.iloc[start:end, cell_gcamp].values
+
+# Run deconvolution
+sp_hat_gcamp = deconv_ca(ca_gcamp, tau=tau_gcamp, dt=dt)
+
+# Plotting
+fig, axs = plt.subplots(3, 1, figsize=(8, 5), sharex=True)
+time = np.arange(start, end) / new_sampling_rate
+
+axs[0].plot(time, ca_gcamp, label="Calcium")
+axs[0].set_ylabel("Ca")
+axs[0].legend()
+
+axs[1].plot(time, sp_hat_gcamp, label="Deconv. spikes", color="green")
+axs[1].set_ylabel("Deconv")
+axs[1].legend()
+
+axs[2].plot(time, true_spikes_gcamp, label="True spikes", color="orange", alpha=0.6)
+axs[2].set_ylabel("True")
+axs[2].set_xlabel("Time (s)")
+axs[2].legend()
+
+plt.suptitle("GCaMP6f - Cell 6: Calcium, Deconv. Spikes, Ground Truth")
+plt.tight_layout()
+plt.show()
+
+#%%
 
 fig, axs = plt.subplots(
     3, 1, figsize=(6, 4), height_ratios=[1, 1, 1], gridspec_kw=dict(hspace=0)
@@ -254,11 +374,10 @@ fig, axs = plt.subplots(
 fig, axs = plt.subplots(
     3, 1, figsize=(6, 4), height_ratios=[1, 1, 1], gridspec_kw=dict(hspace=0)
 )
-
 # GCamp Cell
 
 
-# %% [markdown]
+#%% [markdown]
 # ## Task 3: Run more complex algorithm
 # 
 # As reviewed in the lecture, a number of more complex algorithms for inferring spikes from calcium traces have been developed. Run an implemented algorithm on the data and plot the result. There is a choice of algorithms available, for example:
