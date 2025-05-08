@@ -626,8 +626,6 @@ for alg in algorithms_to_evaluate:
                 print(f"No cells found for {indicator}. Skipping OOPSI.")
                 continue
         # Call the evaluation function
-        # The `spikes` variable is already the correctly binned one (e.g., resampled_ogb_spikes)
-        # DO NOT call bin_spikes(spikes, ...) here again.
         df_result = evaluate_algorithm(
             calcium=aligned_calcium,
             spikes=aligned_spikes,
