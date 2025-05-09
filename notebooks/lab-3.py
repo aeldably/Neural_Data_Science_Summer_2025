@@ -376,44 +376,8 @@ ca_ogb = resampled_ogb_calcium[start:end, cell_ogb]
 true_spikes_ogb = resampled_ogb_spikes[start:end, cell_ogb] 
 
 #%%
-# Run deconvolution
-sp_hat_ogb = deconv_ca(ca_ogb, tau=tau_ogb, dt=dt)
-
-# Plotting
-fig, axs = plt.subplots(3, 1, figsize=(8, 5), sharex=True)
-time = np.arange(start, end) / new_sampling_rate
-
-axs[0].plot(time, ca_ogb, label="Calcium")
-axs[0].set_ylabel("Ca")
-axs[0].legend()
-
-axs[1].plot(time, sp_hat_ogb, label="Deconv. spikes", color="green")
-axs[1].set_ylabel("Deconv")
-axs[1].legend()
-
-axs[2].plot(time, true_spikes_ogb, label="True spikes", color="orange", alpha=0.6)
-axs[2].set_ylabel("True")
-axs[2].set_xlabel("Time (s)")
-axs[2].legend()
-
-plt.suptitle("OGB - Cell 5: Calcium, Deconv. Spikes, Ground Truth")
-plt.tight_layout()
-plt.savefig("../plots/ogb_deconv.png", dpi=300)
-plt.show()
-
-
 #%%
-# GCaMP example: cell 6
-cell_gcamp = 6
-tau_gcamp = 0.1  # seconds
-
-ca_gcamp = resampled_gcamp_calcium[start:end, cell_gcamp]
-true_spikes_gcamp = resampled_gcamp_spikes[start:end, cell_gcamp] 
-
-# Run deconvolution
-sp_hat_gcamp = deconv_ca(ca_gcamp, tau=tau_gcamp, dt=dt)
-#%%%
-
+#%%
 def plot_deconvolution_results_comparison(
     calcium_trace_segment: np.ndarray,
     true_spikes_segment: np.ndarray,
@@ -490,6 +454,27 @@ def plot_deconvolution_results_comparison(
         print(f"Plot saved to {save_filename}")
 
     plt.show()
+
+
+#%%
+# Plotting
+cell_ogb = 5
+tau_ogb = 0.5  # seconds
+ca_ogb = resampled_ogb_calcium[start:end, cell_ogb]
+true_spikes_ogb = resampled_ogb_spikes[start:end, cell_ogb]
+
+plot_deconvolution_results_comparison(
+    calcium_trace_segment=ca_ogb,
+    true_spikes_segment=true_spikes_ogb,
+    time_points=time,
+    tau_value=tau_ogb,
+    dt_value=dt,
+    deconvolution_function=deconv_ca,
+    plot_title="OGB - Cell 5: Calcium, Deconv. Spikes, Ground Truth",
+    save_filename="../plots/ogb_deconv_cell5.png"
+)
+
+#%%
 # Call the function to plot the deconvolution results for GCaMP
 
 # --- Assumed variables from your notebook's context for GCaMP Cell 6 ---
