@@ -375,6 +375,7 @@ end = start + 100 * new_sampling_rate
 ca_ogb = resampled_ogb_calcium[start:end, cell_ogb]
 true_spikes_ogb = resampled_ogb_spikes[start:end, cell_ogb] 
 
+#%%
 # Run deconvolution
 sp_hat_ogb = deconv_ca(ca_ogb, tau=tau_ogb, dt=dt)
 
@@ -411,28 +412,114 @@ true_spikes_gcamp = resampled_gcamp_spikes[start:end, cell_gcamp]
 
 # Run deconvolution
 sp_hat_gcamp = deconv_ca(ca_gcamp, tau=tau_gcamp, dt=dt)
+#%%%
 
-# Plotting
-fig, axs = plt.subplots(3, 1, figsize=(8, 5), sharex=True)
-time = np.arange(start, end) / new_sampling_rate
+def plot_deconvolution_results_comparison(
+    calcium_trace_segment: np.ndarray,
+    true_spikes_segment: np.ndarray,
+    time_points: np.ndarray,
+    tau_value: float,
+    dt_value: float,
+    deconvolution_function: callable,
+    plot_title: str,
+    save_filename: str = None,
+    figsize: tuple = (8, 5)
+):
+    """
+    Performs deconvolution on a calcium segment and plots the calcium trace,
+    deconvolved spikes, and true spikes.
 
-axs[0].plot(time, ca_gcamp, label="Calcium")
-axs[0].set_ylabel("Ca")
-axs[0].legend()
+    Parameters:
+    ----------
+    calcium_trace_segment : np.ndarray
+        The segment of the calcium trace for a single cell.
+    true_spikes_segment : np.ndarray
+        The corresponding segment of the true spike data.
+    time_points : np.ndarray
+        An array of time points for the x-axis, corresponding to the segments' duration.
+    tau_value : float
+        The decay constant (tau) for the deconvolution kernel.
+    dt_value : float
+        The sampling interval (dt) of the data.
+    deconvolution_function : callable
+        The function to use for deconvolution (e.g., the `deconv_ca` function).
+        It should accept arguments like (calcium_trace, tau, dt) and
+        return the deconvolved spike estimates.
+    plot_title : str
+        The main title for the plot.
+    save_filename : str, optional
+        The full path and filename (e.g., "../plots/gcamp_deconv.png")
+        to save the figure. If None, the plot is displayed but not saved.
+    figsize : tuple, optional
+        The size of the figure (width, height) in inches.
+    """
 
-axs[1].plot(time, sp_hat_gcamp, label="Deconv. spikes", color="green")
-axs[1].set_ylabel("Deconv")
-axs[1].legend()
+    # Perform deconvolution using the provided function
+    sp_hat_segment = deconvolution_function(calcium_trace_segment, tau=tau_value, dt=dt_value)
 
-axs[2].plot(time, true_spikes_gcamp, label="True spikes", color="orange", alpha=0.6)
-axs[2].set_ylabel("True")
-axs[2].set_xlabel("Time (s)")
-axs[2].legend()
+    # Plotting
+    fig, axs = plt.subplots(3, 1, figsize=figsize, sharex=True)
 
-plt.suptitle("GCaMP6f - Cell 6: Calcium, Deconv. Spikes, Ground Truth")
-plt.tight_layout()
-plt.savefig("../plots/gcamp_deconv.png", dpi=300)
-plt.show()
+    # Plot 1: Calcium Trace
+    axs[0].plot(time_points, calcium_trace_segment, label="Calcium")
+    axs[0].set_ylabel("Ca")  # Original Y-label from your snippet
+    axs[0].legend()
+
+    # Plot 2: Deconvolved Spikes
+    axs[1].plot(time_points, sp_hat_segment, label="Deconv. spikes", color="green")
+    axs[1].set_ylabel("Deconv")  # Original Y-label
+    axs[1].legend()
+
+    # Plot 3: True Spikes
+    axs[2].plot(time_points, true_spikes_segment, label="True spikes", color="orange", alpha=0.6)
+    axs[2].set_ylabel("True")  # Original Y-label
+    axs[2].set_xlabel("Time (s)")
+    axs[2].legend()
+
+    # Set the overall title for the figure
+    fig.suptitle(plot_title)
+
+    # Apply tight layout to adjust plot parameters for a tight layout.
+    # rect is [left, bottom, right, top] in figure coordinates, making space for suptitle.
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+
+
+    # Save the figure if a path is provided
+    if save_filename:
+        plt.savefig(save_filename, dpi=300)
+        print(f"Plot saved to {save_filename}")
+
+    plt.show()
+# Call the function to plot the deconvolution results for GCaMP
+
+# --- Assumed variables from your notebook's context for GCaMP Cell 6 ---
+cell_gcamp_id = 6 # Or some identifier for the cell
+new_sampling_rate = 25 # Hz
+start = 1000
+end = start + 100 * new_sampling_rate # Or however long your segment is
+dt = 1 / new_sampling_rate # Sampling interval
+tau_gcamp = 0.1 # seconds for GCaMP
+
+# Sliced data segments for the chosen cell and window
+ca_gcamp_segment = resampled_gcamp_calcium[start:end, cell_gcamp_id]
+true_spikes_gcamp_segment = resampled_gcamp_spikes[start:end, cell_gcamp_id]
+
+# Time vector for the x-axis
+time_gcamp_segment = np.arange(start, end) / new_sampling_rate # Absolute time
+# OR, if you prefer time relative to segment start:
+# time_gcamp_segment_relative = np.arange(len(ca_gcamp_segment)) * dt
+
+# --- Example Call to the new function ---
+plot_deconvolution_results_comparison(
+    calcium_trace_segment=ca_gcamp_segment,
+    true_spikes_segment=true_spikes_gcamp_segment,
+    time_points=time_gcamp_segment, # Use the appropriate time vector
+    tau_value=tau_gcamp,
+    dt_value=dt,
+    deconvolution_function=deconv_ca, # Pass the actual function object
+    plot_title=f"GCaMP6f - Cell {cell_gcamp_id}: Calcium, Deconv. Spikes, Ground Truth",
+    save_filename="../plots/gcamp_deconv_cell6_standalone.png"
+)
 
 #%% [markdown]
 # ## Task 3: Run more complex algorithm
