@@ -46,6 +46,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
 from __future__ import annotations
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 %matplotlib inline
 
@@ -64,12 +71,12 @@ plt.style.use("../matplotlib_style.txt")
 # ogb dataset from Theis et al. 2016 Neuron
 ogb_calcium = pd.read_csv("../data/nds_cl_3_ogb_calcium.csv", header=0)
 ogb_spikes = pd.read_csv("../data/nds_cl_3_ogb_spikes.csv", header=0)
-print(f"[OGB] calcium: {ogb_calcium.shape}, spikes: {ogb_spikes.shape}")
+logging.debug(f"[OGB] calcium: {ogb_calcium.shape}, spikes: {ogb_spikes.shape}")
 
 # gcamp dataset from Chen et al. 2013 Nature
 gcamp_calcium = pd.read_csv("../data/nds_cl_3_gcamp2_calcium.csv", header=0)
 gcamp_spikes = pd.read_csv("../data/nds_cl_3_gcamp2_spikes.csv", header=0)
-print(f"[GCaMP] calcium: {gcamp_calcium.shape}, spikes: {gcamp_spikes.shape}")
+logging.debug(f"[GCaMP] calcium: {gcamp_calcium.shape}, spikes: {gcamp_spikes.shape}")
 
 # spike dataframe
 ogb_spikes.head()
@@ -129,7 +136,7 @@ def bin_spikes(spike_array, factor: int) -> np.ndarray:
     np.ndarray
         Binned spike matrix (n_bins, n_cells).
     """
-    print(f"Original shape: {spike_array.shape}")
+    logging.debug(f"Original shape: {spike_array.shape}")
     # spike_array = spike_df.iloc[:, 1:].values  # Drop time/index column if present
     n_bins = spike_array.shape[0] // factor
     n_cells = spike_array.shape[1]
@@ -147,8 +154,8 @@ resampled_gcamp_spikes = bin_spikes(gcamp_spikes.iloc[:, 1:].values, downsample_
 
 
 # Check shape
-print(f"Binned OGB spikes shape: {resampled_ogb_spikes.shape}")
-print(f"Binned GCaMP spikes shape: {resampled_gcamp_spikes.shape}")
+logging.debug(f"Binned OGB spikes shape: {resampled_ogb_spikes.shape}")
+logging.debug(f"Binned GCaMP spikes shape: {resampled_gcamp_spikes.shape}")
 
 #%%
 # --------------------
@@ -162,8 +169,8 @@ time = np.arange(ogb_start, ogb_end) / new_sampling_rate
 
 assert len(time) == 10 * new_sampling_rate # 10 seconds
 
-print(f"Duration of resampled OGB calcium: {len(time) / new_sampling_rate} seconds")
-print(f"Number of samples in OGB calcium: {len(resampled_ogb_calcium[ogb_cell, ogb_start:ogb_end])}")
+logging.debug(f"Duration of resampled OGB calcium: {len(time) / new_sampling_rate} seconds")
+logging.debug(f"Number of samples in OGB calcium: {len(resampled_ogb_calcium[ogb_cell, ogb_start:ogb_end])}")
 
 assert len(resampled_ogb_calcium[ogb_start:ogb_end, ogb_cell]) == 10 * new_sampling_rate # 10 seconds
 
@@ -283,7 +290,8 @@ def deconv_ca(ca: np.ndarray, tau: float, dt: float) -> np.ndarray:
 
 #%%
 def run_deconvolution(calcium: np.ndarray, 
-                      tau: float, dt: float) -> np.ndarray:
+                      tau: float, 
+                      dt: float) -> np.ndarray:
     """
     Run deconvolution on calcium data for all cells.
 
@@ -487,28 +495,21 @@ fig, axs = plt.subplots(
 # 
 # *Grading: 5 pts*
 pd.set_option("display.max_columns", None)
-eval_results = pd.DataFrame(
-    {
-        "algorithm": ["deconv", "oopsi"],
-        "correlation": [None, None],
-        "indicator": ["OGB", "GCaMP"],
-    }
-)
-
 
 # %% [markdown]
 # First, evaluate on OGB data and create OGB dataframe. 
 # Then repeat for GCamp and combine the two dataframes.
 def evaluate_algorithm(
+    algorithm: str,
     calcium: np.ndarray,
     spikes: np.ndarray,
-    algorithm: str,
     tau: float,
     dt: float,
     indicator: str  # Add this to label which dataset (OGB or GCaMP)
 ) -> pd.DataFrame:
     """
-    Evaluate the algorithm on calcium and spike data for all cells.
+    Evaluate the algorithm on calcium and spike data for all 
+    cells.
 
     Parameters
     ----------
@@ -562,90 +563,102 @@ def evaluate_algorithm(
         })
 
     return pd.DataFrame(results)
+
 # %%
 # ----------------------------------------------------------
 # Evaluate the algorithms on the OGB and GCamp cells (2 pts)
 # ----------------------------------------------------------
 # Ensure dt, tau_ogb, and tau_gcamp are defined (likely from Task 2)
-# List to store individual DataFrame results
-all_results_list = []
+def run_all_algorithms(
+    indicators: list[str],
+    calcium_data_map: dict,
+    spike_data_map: dict, 
+    algorithm_map: dict,
+    tau_map: dict,
+    dt: float,
+) -> pd.DataFrame:
+    """
+    Run all algorithms on the provided calcium and spike data.
+    Parameters
+    ----------
+    indicators : list[str]
+        List of indicators (e.g. ["OGB", "GCaMP"]).
+    calcium_data : dict
+        Dictionary mapping indicator names to their respective calcium data.
+    spike_data : dict 
+        Dictionary mapping indicator names to their respective spike data. 
+    algorithm_map : dict
+        Mapping of algorithm names to their respective functions.
+    tau_map : dict 
+        Mapping of indicator names to their respective tau values.
+    dt : float
+        Sampling interval.
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with correlation results for each cell.
+    """
+    # List to store individual DataFrame results
+    all_results_list = []
 
-algorithms_to_evaluate = ["deconv"]
-# If you implement oopsi and want to evaluate it, add "oopsi" to the list:
-# algorithms_to_evaluate = ["deconv", "oopsi"]
-
-for alg in algorithms_to_evaluate:
-    for indicator, calcium_data, spike_data in zip(
-        ["OGB", "GCaMP"],
-        [resampled_ogb_calcium, resampled_gcamp_calcium],
-        [resampled_ogb_spikes, resampled_gcamp_spikes]
-    ):
-        print(f"\nEvaluating Algorithm: '{alg}' for Indicator: '{indicator}'")
-        print(f"Initial calcium data shape: {calcium_data.shape}")
-        print(f"Initial spike data shape: {spike_data.shape}")
-
-        # Determine the correct tau for the current indicator
-        current_tau = tau_ogb if indicator == "OGB" else tau_gcamp
-
-        # Ensure calcium and spike data have the same number of time points (rows)
-        # This can be important if decimation and binning led to slight length differences
-        min_rows = min(calcium_data.shape[0], spike_data.shape[0])
-        
-        aligned_calcium = calcium_data[:min_rows, :]
-        aligned_spikes = spike_data[:min_rows, :]
-        
-        print(f"Aligned calcium shape for evaluation: {aligned_calcium.shape}")
-        print(f"Aligned spikes shape for evaluation: {aligned_spikes.shape}")
-
-        if alg == "oopsi":
-            # Special handling for oopsi if its input requirements differ
-            # or if it processes one cell at a time differently.
-            # The provided oopsi.py might take (Time,) for calcium.
-            # For now, this example assumes evaluate_algorithm handles it.
-            # If oopsi.oopsi itself handles multiple cells, great.
-            # If not, you might need a loop inside evaluate_algorithm for oopsi too,
-            # or call it cell by cell here.
+    for alg_name, alg_func in algorithm_map.items():
+        for indicator in indicators:
+            # Get the calcium and spike data for the current indicator
+            calcium_data = calcium_data_map[indicator]
+            spike_data = spike_data_map[indicator]
+            tau = tau_map[indicator]
             
-            # Example: if oopsi.oopsi needs 1D calcium array per cell
-            inferred_spikes_algo = np.zeros_like(aligned_calcium)
-            if aligned_calcium.shape[1] > 0 : # Check if there are cells
-                 for cell_idx in range(aligned_calcium.shape[1]):
-                    # Note: The oopsi function from the master branch of py-oopsi
-                    # seems to take F (calcium trace, 1d), and dt. Tau is estimated.
-                    # You might need to adjust how tau is passed or used if using that version.
-                    # For this exercise, we are following the structure of deconv_ca.
-                    # If your oopsi function in evaluate_algorithm is set up like deconv_ca, this is fine.
-                    if 'oopsi' in globals() and hasattr(oopsi, 'oopsi'): # Check if oopsi is imported and has the function
-                        # This is a placeholder, adapt if your oopsi function works differently
-                        # The evaluate_algorithm function already loops through cells for "oopsi"
-                        pass # evaluate_algorithm will handle it based on its internal logic
-                    else:
-                        print(f"OOPSI algorithm selected, but 'oopsi.oopsi' function not available. Skipping OOPSI for {indicator}.")
-                        continue 
-            else:
-                print(f"No cells found for {indicator}. Skipping OOPSI.")
-                continue
-        # Call the evaluation function
-        df_result = evaluate_algorithm(
-            calcium=aligned_calcium,
-            spikes=aligned_spikes,
-            algorithm=alg,
-            tau=current_tau,
-            dt=dt,
-            indicator=indicator
-        )
+            logging.debug(f"\nEvaluating Algorithms: '{alg_name}' for Indicator: '{indicator}'")
+            logging.debug(f"Initial calcium data shape: {calcium_data.shape}")
+            logging.debug(f"Initial spike data shape: {spike_data.shape}")
+            # Ensure calcium and spike data have the same number of time points (rows)
+            # This can be important if decimation and binning led to slight length differences  
+            min_rows = min(calcium_data.shape[0], spike_data.shape[0])
+            aligned_calcium = calcium_data[:min_rows, :]
+            aligned_spikes = spike_data[:min_rows, :]
+            logging.debug(f"Aligned calcium shape for evaluation: {aligned_calcium.shape}")
+            logging.debug(f"Aligned spikes shape for evaluation: {aligned_spikes.shape}")
+            
+            # Call the evaluation function
+            df_result = evaluate_algorithm(
+                algorithm=alg_name,
+                calcium=aligned_calcium,
+                spikes=aligned_spikes,
+                tau=tau,
+                dt=dt,
+                indicator=indicator
+            )
+            all_results_list.append(df_result)
+    # Concatenate all results into the final DataFrame  
+    if all_results_list:
+        eval_results_df = pd.concat(all_results_list, ignore_index=True)
+    else:
+        eval_results_df = pd.DataFrame() # Create an empty DataFrame if no results
+    return eval_results_df
+#%%
 
-        all_results_list.append(df_result)
-
-# Concatenate all results into the final DataFrame
-if all_results_list:
-    eval_results_df = pd.concat(all_results_list, ignore_index=True)
-else:
-    eval_results_df = pd.DataFrame() # Create an empty DataFrame if no results
-
-print("\n--- Final Evaluation DataFrame ---")
-print(eval_results_df)
-
+#%%
+eval_results_df = run_all_algorithms(
+    indicators=["OGB", "GCaMP"],
+    calcium_data_map={
+        "OGB": resampled_ogb_calcium,
+        "GCaMP": resampled_gcamp_calcium
+    },
+    spike_data_map={
+        "OGB": resampled_ogb_spikes,
+        "GCaMP": resampled_gcamp_spikes
+    },
+    algorithm_map={
+        "deconv": run_deconvolution,
+        # TODO: Add "oopsi": oopsi.oopsi if you implement it
+    },
+    tau_map={
+        "OGB": tau_ogb,
+        "GCaMP": tau_gcamp
+    },
+    dt=dt
+)
+    
 # Now eval_results_df is ready for Task 4 plotting
 # %%
 # ----------------------------------------------------------
@@ -735,6 +748,44 @@ else:
 plt.savefig("../plots/evaluation_results.png", dpi=300)
 plt.show()
 
-print("\n--- Final Evaluation DataFrame Used for Plot ---")
-print(eval_results_df)
+logging.debug("\n--- Final Evaluation DataFrame Used for Plot ---")
+logging.debug(eval_results_df)
+# %%
+def strip_plot_eval_results(eval_results_df):
+    """
+    Create a stripplot for the evaluation results.
+
+    Parameters
+    ----------
+    eval_results_df : pd.DataFrame
+        DataFrame containing evaluation results with columns:
+        'indicator', 'correlation', and 'algorithm'.
+    """
+    plt.figure(figsize=(8, 6)) # Adjust figure size as needed
+    ax = sns.stripplot(
+        x="indicator",      # Categorical variable for the x-axis (groups)
+        y="correlation",    # Numerical variable for the y-axis (values to plot)
+        hue="algorithm",    # Second categorical variable to group by color
+        data=eval_results_df,
+        jitter=True,        # Adds random noise along the categorical axis to prevent points from overlapping
+                            # You can also use a float for finer control, e.g., jitter=0.1
+        dodge=True,         # Separates the strips for different 'hue' levels along the x-axis
+        alpha=0.7,          # Transparency of points (useful if many points overlap)
+        palette="Set2",      # Color palette for different algorithms
+        size=16,             # Size of the points
+    )
+
+    plt.title("Performance of Spike Inference Algorithms")
+    plt.suptitle("Stripplot of Correlation by Indicator and Algorithm, Each Cell")
+    plt.xlabel("Calcium Indicator")
+    plt.ylabel("Correlation (Inferred vs. True Spikes)")
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.legend(title="Algorithm") # Add a legend for the hue
+    plt.tight_layout()
+    plt.savefig("../plots/eval_results_stripplot.png", dpi=300)
+    plt.show()
+
+# drop NaN values for plotting
+#filtered_eval_results_df = eval_results_df.dropna(subset=["correlation"])
+strip_plot_eval_results(eval_results_df)
 # %%
