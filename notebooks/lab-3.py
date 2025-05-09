@@ -516,8 +516,6 @@ plot_deconvolution_results_comparison(
 # * Friedrich: [OASIS](https://github.com/j-friedrich/OASIS)
 # 
 # *Grading: 3 pts*
-# 
-# 
 
 # %%
 # run this cell to download the oopsi.py file and put it in the 
