@@ -686,106 +686,80 @@ fig, ax = plt.subplots(figsize=(6, 6), layout="constrained")
 # Create Strip/Boxplot for both cells and algorithms Cell as described. (1 pt)
 # Describe and explain the results briefly. (1 pt)
 # ----------------------------------------------------------------------------
-fig, ax = plt.subplots(figsize=(8, 7), layout="constrained") # Increased figure size for better readability
-# Check if the DataFrame is empty or if the 'correlation' column is all NaN
-if eval_results_df.empty or eval_results_df['correlation'].isnull().all():
-    ax.text(0.5, 0.5, "No valid correlation data to plot.",
-            horizontalalignment='center', verticalalignment='center',
-            transform=ax.transAxes, fontsize=12, color='red')
-    ax.set_title("Evaluation of Spike Inference Algorithms")
-    ax.set_xlabel("Indicator")
-    ax.set_ylabel("Correlation")
-else:
-    # Create a combined boxplot and stripplot
-    sns.boxplot(
-        x="indicator",
-        y="correlation",
-        hue="algorithm",  # Even if only one algorithm, hue makes it expandable
-        data=eval_results_df,
-        ax=ax,
-        palette="Set2",
-        fliersize=0 # Hide outlier markers from boxplot as stripplot will show all points
-    )
-    sns.stripplot(
-        x="indicator",
-        y="correlation",
-        hue="algorithm", # Even if only one algorithm, hue makes it expandable
-        data=eval_results_df,
-        ax=ax,
-        dodge=True, # Dodge points along the categorical axis for hue
-        jitter=True, # Add some jitter to prevent points from overlapping
-        alpha=0.7,
-        palette="Set2",
-        linewidth=0.5,
-        edgecolor='gray'
-    )
-
-    ax.set_title("Performance of Spike Inference Algorithms")
-    ax.set_xlabel("Calcium Indicator")
-    ax.set_ylabel("Correlation (Inferred vs. True Spikes)")
-    ax.grid(axis="y", linestyle="--", alpha=0.7)
-
-    # Improve legend if there are multiple algorithms, or simplify if only one
-    handles, labels = ax.get_legend_handles_labels()
-    # Depending on how many algorithms, handles/labels might be duplicated.
-    # Take unique labels. For stripplot and boxplot, hue creates two sets of legend items.
-    # We only need one set for the legend.
-    if handles: # Check if there are any legend handles
-        # A common way to get unique legend items when hue is used for both box and strip plots
-        # is to take the first half (or second half) if they are duplicated.
-        # For a single algorithm, this also works.
-        unique_handles = handles[:len(handles)//2]
-        unique_labels = labels[:len(labels)//2]
-        if not unique_handles: # If the above logic fails (e.g. only one type of plot had hue)
-            unique_handles = handles
-            unique_labels = labels
-        ax.legend(unique_handles, unique_labels, title="Algorithm", loc="best")
-    else:
-        # If no legend handles (e.g., no 'hue' used or no data), remove any potential empty legend
-        if ax.get_legend() is not None:
-            ax.get_legend().remove()
-
-plt.savefig("../plots/evaluation_results.png", dpi=300)
-plt.show()
-
-logging.debug("\n--- Final Evaluation DataFrame Used for Plot ---")
-logging.debug(eval_results_df)
-# %%
-def strip_plot_eval_results(eval_results_df):
+def box_plot_eval_results(ax, eval_results_df):
     """
-    Create a stripplot for the evaluation results.
+    Create a boxplot for the evaluation results.
 
     Parameters
     ----------
+    ax : matplotlib.axes.Axes
+        Axes object to plot on.
     eval_results_df : pd.DataFrame
         DataFrame containing evaluation results with columns:
         'indicator', 'correlation', and 'algorithm'.
     """
-    plt.figure(figsize=(8, 6)) # Adjust figure size as needed
-    ax = sns.stripplot(
+    # Set the figure size and layout
+    #plt.figure(figsize=(8, 6)) # Adjust figure size as needed
+    sns.boxplot(
         x="indicator",      # Categorical variable for the x-axis (groups)
         y="correlation",    # Numerical variable for the y-axis (values to plot)
         hue="algorithm",    # Second categorical variable to group by color
         data=eval_results_df,
-        jitter=True,        # Adds random noise along the categorical axis to prevent points from overlapping
-                            # You can also use a float for finer control, e.g., jitter=0.1
+        palette="Set2",      # Color palette for different algorithms
+        fliersize=0,         # Hide outlier markers from boxplot
+        ax=ax,
+    )
+    ax.set_xlabel("Calcium Indicator")
+    ax.set_ylabel("Correlation (Inferred vs. True Spikes)")
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    ax.legend(title="Algorithm") # Add a legend for the hue
+    ax.title.set_text("Performance of Spike Inference Algorithms")
+    
+#%%
+def strip_plot_eval_results(ax, eval_results_df):
+    """
+    Create a stripplot for the evaluation results.
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axes object to plot on.
+    eval_results_df : pd.DataFrame
+        DataFrame containing evaluation results with columns:
+        'indicator', 'correlation', and 'algorithm'.
+    """
+    # Set the figure size and layout
+    sns.stripplot(
+        x="indicator",      # Categorical variable for the x-axis (groups)
+        y="correlation",    # Numerical variable for the y-axis (values to plot)
+        hue="algorithm",    # Second categorical variable to group by color
+        data=eval_results_df,
         dodge=True,         # Separates the strips for different 'hue' levels along the x-axis
+        jitter=True,        # Adds random noise along the categorical axis to prevent points from overlapping
         alpha=0.7,          # Transparency of points (useful if many points overlap)
         palette="Set2",      # Color palette for different algorithms
         size=16,             # Size of the points
+        ax=ax,
     )
+    ax.set_xlabel("Calcium Indicator")
+    ax.set_ylabel("Correlation (Inferred vs. True Spikes)")
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    ax.legend(title="Algorithm") # Add a legend for the hue
+    ax.title.set_text("Performance of Spike Inference Algorithms, By Cell")
+    
+#%%
+# Create the figure and an array of Axes objects
+fig, axes = plt.subplots(ncols=2, figsize=(15, 8), layout="constrained") # Renamed 'ax' to 'axes' for clarity
 
-    plt.title("Performance of Spike Inference Algorithms")
-    plt.suptitle("Stripplot of Correlation by Indicator and Algorithm, Each Cell")
-    plt.xlabel("Calcium Indicator")
-    plt.ylabel("Correlation (Inferred vs. True Spikes)")
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.legend(title="Algorithm") # Add a legend for the hue
-    plt.tight_layout()
-    plt.savefig("../plots/eval_results_stripplot.png", dpi=300)
-    plt.show()
+# Set an overall title for the entire figure (optional)
+fig.suptitle("Comparison of Algorithm Performance", fontsize=16, y=1.02) # y positions suptitle slightly higher
 
-# drop NaN values for plotting
-#filtered_eval_results_df = eval_results_df.dropna(subset=["correlation"])
-strip_plot_eval_results(eval_results_df)
+# Call your plotting functions, passing the specific Axes object for each plot
+# These functions are expected to set their own titles and legends.
+box_plot_eval_results(axes[0], eval_results_df)
+strip_plot_eval_results(axes[1], eval_results_df)
+
+# Save the entire figure (which now contains two subplots)
+plt.savefig("../plots/eval_results_comparison_plots.png", dpi=300) # Adjusted filename for clarity
+plt.show()
+
 # %%
