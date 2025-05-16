@@ -493,7 +493,7 @@ def plot_all_conditions_psth(
 #%%
 # --- Example Usage ---
 # Select 5 neurons at random and plot them. 
-for i in range(10):
+for i in range(5):
     target_neuron = np.random.choice(np.unique(spikes['Neuron']))
     # Call the main plotting function
     # This function internally calls the computation functions
