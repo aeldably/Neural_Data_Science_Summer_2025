@@ -39,12 +39,15 @@ import itertools
 #%watermark --time --date --timezone --updated --python --iversions --watermark -p sklearn
 
 # %%
-plt.style.use("../matplotlib_style.txt")
+#plt.style.use("../../matplotlib_style.txt")
 
 # %% [markdown]
 # ## Load data
 
 # %%
+import os
+os.chdir("./notebooks")
+#%%
 spikes = pd.read_csv("../data/nds_cl_4_spiketimes.csv")  # neuron id, spike time
 stims = pd.read_csv("../data/nds_cl_4_stimulus.csv")  # stimulus onset in ms, direction
 
@@ -62,10 +65,15 @@ stims["StimOffset"] = stims["StimOnset"] + stimDur
 # this information here and add it as additional columns 
 # to the `spikes` dataframe by combining it with the 
 # `stims` dataframe. 
-# We later need to know which 
-# condition (`Dir`) and trial (`Trial`) a spike 
+#
+# We later need to know which condition (`Dir`) and trial (`Trial`) a spike 
 # was recorded in, the relative spike times compared 
-# to stimulus onset of the stimulus it was recorded in (`relTime`) and whether a spike was during the stimulation period (`stimPeriod`). But there are many options how to solve this exercise and you are free to choose any of them.
+# to stimulus onset of the stimulus it was recorded in 
+# (`relTime`) and whether a spike was during the stimulation period 
+# (`stimPeriod`). 
+#
+# But there are many options how to solve this exercise 
+# and you are free to choose any of them.
 
 # %%
 # you may add computations as specified above
@@ -178,7 +186,7 @@ def plotRaster(spikes: pd.DataFrame, neuron: int):
     plt.show()
 
 #%%
-for i in range(10):
+for i in range(40):
     plotRaster(spikes, i)
 
 # %% [markdown]
@@ -199,21 +207,32 @@ for i in range(10):
 # %% [markdown]
 # ## Task 2: Plot spike density functions
 # 
-# Compute an estimate of the spike rate against time relative to stimulus onset. There are two ways:
-# * Discretize time: Decide on a bin size, count the spikes in each bin and average across trials. 
-# * Directly estimate the probability of spiking using a density estimator with specified kernel width. 
+# Compute an estimate of the spike rate against time 
+# relative to stimulus onset. 
+#
+# There are two ways:
+#
+# * Discretize time: Decide on a bin size, 
+# count the spikes in each bin and average 
+# across trials. 
+#
+# * Directly estimate the probability of spiking 
+# using a density estimator with specified 
+# kernel width. 
 # 
-# For full points, the optimal kernel- or bin-width needs to be computed.
+# For full points, the *optimal* kernel- or bin-width 
+# needs to be computed.
 # 
-# Implement one of them in the function `plotPSTH()`. If you dont use a dataframe you may need to change the interface of the function.
-# 
+# Implement one of them in the function `plotPSTH()`. 
+#
+# If you dont use a dataframe you may need to 
+# change the interface of the function.
 # 
 # *Grading: 4 pts*
-# 
-
 # %%
 def plotPSTH(spikes: pd.DataFrame, neuron: int):
-    """Plot PSTH for a single neuron sorted by condition
+    """Plot PSTH for a single neuron sorted by 
+    condition
 
     Parameters
     ----------
@@ -229,19 +248,104 @@ def plotPSTH(spikes: pd.DataFrame, neuron: int):
     Note
     ----
 
-    this function does not return anything, it just creates a plot!
+    This function does not return anything, it just 
+    creates a plot!
     """
-
     # -------------------------------------------------
     # Implement one of the spike rate estimates (3 pts)
     # -------------------------------------------------
-
     for row, dir in enumerate(dirs):
+        print("direction", dir)
         # ---------------------------------------------
         # Plot the obtained spike rate estimates (1 pt)
         # ---------------------------------------------
         continue
+    neuron_spikes = spikes[
+        (spikes["Neuron"] == neuron) & (spikes["stimPeriod"] == True)
+    ]
+    if neuron_spikes.empty:
+        print(f"No spikes found for neuron {neuron} during stimulation periods.")
+        return
 
+    unique_dirs = np.sort(neuron_spikes["Dir"].unique())
+    n_dirs = len(unique_dirs)
+    n_trials_per_dir = spikes.groupby(["Neuron", "Dir"])["Trial"].nunique().loc[neuron].max()
+
+    stim_dur_ms = stimDur
+    bin_width_ms = 50  # Set bin width in milliseconds
+    # Determine the number of bins
+    bins = np.arange(0, stim_dur_ms + bin_width_ms, bin_width_ms)
+    bin_centers = bins[:-1] + bin_width_ms / 2
+
+    # Create subplots: one row per direction, or a grid
+    # For many directions, a grid might be better, or overlaying plots
+    # Let's try a grid layout
+    n_cols = 4
+    n_rows = int(np.ceil(n_dirs / n_cols))
+    
+    if n_dirs == 0:
+        print(f"No stimulus directions found for neuron {neuron}.")
+        return
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows), sharex=True, sharey=True
+    )
+    axes = axes.flatten() # Flatten in case of single row/col
+
+    max_rate = 0 # To keep track of max rate for y-axis scaling
+
+    for i, direction in enumerate(unique_dirs):
+        ax = axes[i]
+        dir_spikes = neuron_spikes[neuron_spikes["Dir"] == direction]
+
+        # Aggregate all relative spike times for this direction
+        all_rel_times_for_dir = dir_spikes["relTime"].values
+
+        if len(all_rel_times_for_dir) > 0:
+            # Create histogram of spike counts
+            counts, _ = np.histogram(all_rel_times_for_dir, bins=bins)
+
+            # Number of trials for this specific direction
+            # This is important if some directions had fewer trials recorded or if trials are missing spikes
+            current_n_trials = dir_spikes["Trial"].nunique()
+            if current_n_trials == 0 and len(all_rel_times_for_dir) > 0:
+                 # This case should ideally not happen if data is consistent
+                 # but as a fallback if somehow trials are not correctly numbered for all spikes.
+                 # A better way is to use the global nTrials if it's guaranteed to be constant.
+                 # For now, let's use the known nTrials constant
+                 current_n_trials = nTrials
+
+
+            # Convert to rate: counts / (num_trials * bin_width_seconds)
+            rate = counts / (current_n_trials * (bin_width_ms / 1000.0))
+            max_rate = max(max_rate, np.max(rate))
+
+            ax.plot(bin_centers, rate, linestyle="-", marker="")
+            # ax.bar(bin_centers, rate, width=bin_width_ms, align='center') # Alternative: bar plot
+
+        ax.set_title(f"Direction {int(direction)}°")
+        ax.axvspan(0, stim_dur_ms, color="gray", alpha=0.2, label="Stimulus ON") # Mark stimulus period
+        if i >= (n_rows -1) * n_cols : # Only x-label for bottom plots
+             ax.set_xlabel("Time relative to stimulus onset (ms)")
+        if i % n_cols == 0: # Only y-label for left-most plots
+            ax.set_ylabel("Firing Rate (spikes/s)")
+
+
+    # Post-loop adjustments
+    for i in range(n_dirs): # Set ylim for all relevant axes
+        axes[i].set_ylim(0, max_rate * 1.1 if max_rate > 0 else 1) # Add 10% margin
+        axes[i].grid(True, linestyle=":", alpha=0.7)
+
+
+    # Hide unused subplots
+    for i in range(n_dirs, len(axes)):
+        fig.delaxes(axes[i])
+
+    fig.suptitle(f"PSTH for Neuron {neuron} (Bin Width: {bin_width_ms} ms)", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust layout to make space for suptitle
+    plt.show()
+    
+plotPSTH(spikes, 1)
 # %% [markdown]
 # Plot the same 3 examples you selected in Task 1
 
@@ -251,7 +355,9 @@ def plotPSTH(spikes: pd.DataFrame, neuron: int):
 # %% [markdown]
 # ## Task 3: Fit and plot tuning functions
 # 
-# The goal is to visualize the activity of each neuron as a function of stimulus direction. First, compute the spike counts of each neuron for each direction of motion and trial.  The result should be a matrix `x`, where $x_{jk}$ represents the spike count of the $j$-th response to the $k$-th direction of motion (i.e. each column contains the spike counts for all trials with one direction of motion).	If you used dataframes above, the `groupby()` function allows to implement this very compactly. Make sure you don't loose trials with zero spikes though. Again, other implementations are completely fine.
+# The goal is to visualize the activity of each neuron as a function of stimulus direction. 
+# First, compute the spike counts of each neuron for each direction of motion and trial.  
+# The result should be a matrix `x`, where $x_{jk}$ represents the spike count of the $j$-th response to the $k$-th direction of motion (i.e. each column contains the spike counts for all trials with one direction of motion).	If you used dataframes above, the `groupby()` function allows to implement this very compactly. Make sure you don't loose trials with zero spikes though. Again, other implementations are completely fine.
 # 
 # Fit the tuning curve, i.e. the average spike count per direction, using a von Mises model. To capture the non-linearity and direction selectivity of the neurons, we will fit a modified von Mises function:
 # 
@@ -338,7 +444,6 @@ def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.n
 
 # %% [markdown]
 # Plot tuning curve and fit for different neurons. Good candidates to check are 28, 29 or 37. 
-
 # %%
 def get_data(spikes, neuron):
     spk_by_dir = (
@@ -375,7 +480,19 @@ def get_data(spikes, neuron):
 # %% [markdown]
 # ## Task 4: Permutation test for direction tuning
 # 
-# Implement a permutation test to quantitatively assess whether a neuron is direction/orientation selective. To do so, project the vector of average spike counts, $m_k=\frac{1}{N}\sum_j x_{jk}$ on a complex exponential with two cycles, $v_k = \exp(\psi i \theta_k)$, where $\theta_k$ is the $k$-th direction of motion in radians and $\psi \in 1,2$ is the fourier component to test (1: direction, 2: orientation). Denote the projection by $q=m^Tv$. The magnitude $|q|$ tells you how much power there is in the $\psi$-th fourier component. 
+# Implement a permutation test to quantitatively assess whether a 
+# neuron is direction/orientation selective. 
+# 
+# To do so, project the vector of average spike counts, 
+#       $m_k=\frac{1}{N}\sum_j x_{jk}$ 
+# on a complex exponential with two cycles, 
+#       $v_k = \exp(\psi i \theta_k)$, 
+# where $\theta_k$ is the $k$-th direction of motion in radians and 
+# $\psi \in 1,2$ is the fourier component to test 
+# (1: direction, 2: orientation). 
+#
+# Denote the projection by $q=m^Tv$. The magnitude $|q|$ tells you how 
+# much power there is in the $\psi$-th fourier component. 
 # 
 # Estimate the distribution of |q| under the null hypothesis that the neuron fires randomly across directions by running 1000 iterations where you repeat the same calculation as above but on a random permutation of the trials (that is, randomly shuffle the entries in the spike count matrix x). The fraction of iterations for which you obtain a value more extreme than what you observed in the data is your p-value. Implement this procedure in the function ```testTuning()```. 
 # 
