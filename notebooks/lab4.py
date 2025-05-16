@@ -14,23 +14,36 @@
 # %% [markdown]
 # # Coding Lab 4
 # 
-# In this notebook you will work with preprocessed 2 photon calcium recordings, that have already been converted into spike counts for a population of cells from the Macaque V1. During the experiment the animal has been presented with several drifting grating stimuli, in response to which the neural activity was recorded. In this exercise sheet we will study how you can visualize the activity of multiple neural spike trains and assess whether a neuron is selective to a specific stimulus type.
+# In this notebook you will work with preprocessed 2 
+# photon calcium recordings, that have already been converted 
+# into spike counts for a population of cells from the 
+# Macaque V1. 
+#
+# During the experiment the animal has been presented with 
+# several drifting grating stimuli, in response to which the 
+# neural activity was recorded. 
+#
+# In this exercise sheet we will study how you can visualize the 
+# activity of multiple neural spike trains and assess whether a 
+# neuron is selective to a specific stimulus type.
 # 
 # Download the data files ```nds_cl_4_*.csv``` from ILIAS and save it in the subfolder ```../data/```. We recommend you to use a subset of the data for testing and debugging, ideally focus on a single cell (e.g. cell number x). The spike times and stimulus conditions are read in as pandas data frames. You can solve the exercise by making heavy use of that, allowing for many quite compact computations. See [documentation](http://pandas.pydata.org/pandas-docs/stable/index.html) and several good [tutorials](https://www.datacamp.com/community/tutorials/pandas-tutorial-dataframe-python#gs.L37i87A) on how to do this. Of course, converting the data into classical numpy arrays is also valid.
 
-# %%
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-import numpy as np
-import scipy.optimize as opt
-
+#%%
 from scipy import signal as signal
+from scipy.stats import gaussian_kde # For SDF example
+
 from typing import Tuple
 
 import itertools
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy.optimize as opt
+import seaborn as sns
+import os
 #%matplotlib inline
 
 #%load_ext jupyter_black
@@ -44,9 +57,6 @@ import itertools
 # %% [markdown]
 # ## Load data
 
-# %%
-import os
-os.chdir("./notebooks")
 #%%
 spikes = pd.read_csv("../data/nds_cl_4_spiketimes.csv")  # neuron id, spike time
 stims = pd.read_csv("../data/nds_cl_4_stimulus.csv")  # stimulus onset in ms, direction
@@ -59,6 +69,7 @@ deltaDir = 22.5  # difference between conditions
 stims["StimOffset"] = stims["StimOnset"] + stimDur
 
 # %% [markdown]
+#
 # We require some more information about the spikes for 
 # the plots and analyses we intend to make later. With a 
 # solution based on dataframes, it is natural to compute 
@@ -69,8 +80,8 @@ stims["StimOffset"] = stims["StimOnset"] + stimDur
 # We later need to know which condition (`Dir`) and trial (`Trial`) a spike 
 # was recorded in, the relative spike times compared 
 # to stimulus onset of the stimulus it was recorded in 
-# (`relTime`) and whether a spike was during the stimulation period 
-# (`stimPeriod`). 
+# (`relTime`) and whether a spike was during the 
+# stimulation period (`stimPeriod`). 
 #
 # But there are many options how to solve this exercise 
 # and you are free to choose any of them.
@@ -103,16 +114,6 @@ spikes = spikes.dropna()
 
 # %%
 spikes.head()
-# %%
-# I want to group the spikes by trial and direction
-# and count the number of spikes in each trial
-# I will use the groupby function to do this
-spk_by_dir = (
-    spikes.groupby(["Dir", "Trial"])["stimPeriod"]
-    .sum()
-    .astype(int)
-    .reset_index()
-)
 
 #%%
 # %% [markdown]
@@ -186,15 +187,15 @@ def plotRaster(spikes: pd.DataFrame, neuron: int):
     plt.show()
 
 #%%
-for i in range(40):
+for i in range(1,40):
     plotRaster(spikes, i)
 
 # %% [markdown]
-# Find examples of 
+# Find examples of:
+#
 # 1. A direction selective neuron
 # 2. An orientation selective neuron 
 # 3. Neither
-# 
 # And explain your choices.
 
 
@@ -203,6 +204,147 @@ for i in range(40):
 # ---------------------------------
 # Find and explain examples? (1 pt)
 # ---------------------------------
+#%% My library code: 
+
+# --- Helper function for optimal bin width (example: Freedman-Diaconis) ---
+# TODO: Consider other binning methods.
+def calculate_fd_bin_width(data: np.ndarray) -> float:
+    if len(data) < 4:
+        return 50.0
+    q1, q3 = np.percentile(data, [25, 75])
+    iqr = q3 - q1
+    if iqr == 0:
+        data_range = np.max(data) - np.min(data)
+        return data_range / 10 if data_range > 0 else 20.0
+    bin_width = 2 * iqr * (len(data) ** (-1/3))
+    return bin_width if bin_width > 0 else 20.0
+
+# --- Computation for Binned PSTH ---
+def compute_binned_psth(
+    spike_times: np.ndarray,
+    stim_dur_ms: float,
+    num_trials: int,
+    bin_width_ms: float = None,
+    min_bin_width_ms: float = 10.0,
+    max_bin_ratio: float = 0.1, # Max bin width as ratio of stim_dur_ms
+    calculate_bin_width=calculate_fd_bin_width # Optional: pass a custom bin width function
+):
+    """
+    Computes a binned Peristimulus Time Histogram (PSTH).
+
+    Parameters:
+    -----------
+    spike_times : np.ndarray
+        Array of spike times relative to stimulus onset (in ms) for a specific condition.
+    stim_dur_ms : float
+        Total duration of the stimulus period to analyze (in ms).
+    num_trials : int
+        Number of trials the spike_times are aggregated over.
+    bin_width_ms : float, optional
+        Desired bin width in ms. If None, Freedman-Diaconis rule is used.
+    min_bin_width_ms : float
+        Minimum allowed bin width.
+    max_bin_ratio : float
+        Maximum allowed bin width as a fraction of stim_dur_ms.
+        
+    calculate_bin_width : function
+        Function to calculate bin width. Default is Freedman-Diaconis rule.
+
+    Returns:
+    --------
+    tuple: (bin_centers, rates, actual_bin_width_ms)
+        - bin_centers (np.ndarray): Time points for the center of each bin.
+        - rates (np.ndarray): Firing rate in spikes/second for each bin.
+        - actual_bin_width_ms (float): The bin width used for calculation.
+    """
+    if num_trials == 0: # Should not happen if spike_times is not empty, but good check
+        return np.array([]), np.array([]), bin_width_ms or 50.0
+
+    if bin_width_ms is None:
+        if len(spike_times) > 1:
+            calculated_width = calculate_bin_width(spike_times)
+            actual_bin_width_ms = np.clip(calculated_width, min_bin_width_ms, stim_dur_ms * max_bin_ratio)
+        else:
+            actual_bin_width_ms = 50.0 # Default if not enough data
+    else:
+        actual_bin_width_ms = bin_width_ms
+
+    if actual_bin_width_ms <= 0:
+        actual_bin_width_ms = 50.0 # Fallback
+
+    bins = np.arange(0, stim_dur_ms + actual_bin_width_ms / 2.0, actual_bin_width_ms)
+    if len(bins) < 2: # Not enough bins, possibly due to very small stim_dur_ms or large bin_width_ms
+        return np.array([]), np.array([]), actual_bin_width_ms
+
+    counts, _ = np.histogram(spike_times, bins=bins)
+    
+    rates = counts / (num_trials * (actual_bin_width_ms / 1000.0)) # Convert to spikes/sec
+    bin_centers = bins[:-1] + actual_bin_width_ms / 2.0
+    
+    return bin_centers, rates, actual_bin_width_ms
+
+# --- Computation for Spike Density Function (SDF) ---
+def compute_sdf(
+    spike_times: np.ndarray,
+    stim_dur_ms: float,
+    num_trials: int,
+    kernel_bandwidth_ms: float = None, # Bandwidth for Gaussian KDE
+    num_points: int = 200 # Number of points to evaluate the SDF
+):
+    """
+    Computes a Spike Density Function (SDF) using Gaussian Kernel Density Estimation.
+
+    Parameters:
+    -----------
+    spike_times : np.ndarray
+        Array of spike times relative to stimulus onset (in ms) for a specific condition.
+    stim_dur_ms : float
+        Total duration of the stimulus period (used for defining evaluation range).
+    num_trials : int
+        Number of trials the spike_times are aggregated over.
+    kernel_bandwidth_ms : float, optional
+        Bandwidth for the Gaussian kernel in ms. If None, Scott's rule or Silverman's
+        heuristic is used by gaussian_kde, adjusted for scale.
+    num_points : int
+        Number of points at which to evaluate the SDF.
+
+    Returns:
+    --------
+    tuple: (time_points, density_rate)
+        - time_points (np.ndarray): Time points at which the SDF is evaluated.
+        - density_rate (np.ndarray): Estimated firing rate in spikes/second.
+    """
+    if len(spike_times) == 0 or num_trials == 0:
+        time_points_eval = np.linspace(0, stim_dur_ms, num_points)
+        return time_points_eval, np.zeros_like(time_points_eval)
+
+    # gaussian_kde expects data in its original scale for bandwidth estimation.
+    # The output of kde.evaluate is a probability density.
+    # To get spikes/sec: density * (total number of spikes / num_trials) / (bandwidth_in_seconds_if_kernel_was_normalized_to_integrate_to_1_over_bandwidth)
+    # More simply: density * (num_spikes_per_trial) -> gives probability of spike per ms if kernel is for ms
+    # Then multiply by 1000 for spikes/sec.
+    # Or: total density * N_spikes / (N_trials * kernel_width_s) - this gets tricky.
+
+    # Alternative: Scale by total number of spikes, divide by trials, divide by evaluation window length if density sums to 1
+    # The output of gaussian_kde is a PDF. To convert to firing rate:
+    # Rate(t) = sum_over_spikes K(t - t_spike) / N_trials
+    # If K is a Gaussian kernel, gaussian_kde estimates sum_over_spikes K(t - t_spike) / N_spikes_total
+    # So, Rate(t) = kde_estimate(t) * N_spikes_total / N_trials
+    
+    kde = gaussian_kde(spike_times, bw_method=kernel_bandwidth_ms / np.std(spike_times) if kernel_bandwidth_ms and np.std(spike_times) > 0 else 'scott')
+    # bw_method in gaussian_kde is a factor multiplied by std of data.
+    # If you provide kernel_bandwidth_ms, you want it to be the actual sigma of the Gaussian.
+    # So, bw_factor = kernel_bandwidth_ms / np.std(spike_times)
+
+    time_points_eval = np.linspace(0, stim_dur_ms, num_points)
+    density_estimate = kde.evaluate(time_points_eval) # This is a probability density
+
+    # Scale to firing rate: (density values * total number of spikes) / number of trials
+    # This gives an estimate of the instantaneous rate.
+    # The density integrates to 1. We want the rate such that integrating it over time gives total spikes / N_trials
+    sdf_rate = density_estimate * (len(spike_times) / num_trials) * 1000 # Convert from spikes/ms to spikes/s
+
+    return time_points_eval, sdf_rate
 
 # %% [markdown]
 # ## Task 2: Plot spike density functions
@@ -260,6 +402,8 @@ def plotPSTH(spikes: pd.DataFrame, neuron: int):
         # Plot the obtained spike rate estimates (1 pt)
         # ---------------------------------------------
         continue
+    
+    
     neuron_spikes = spikes[
         (spikes["Neuron"] == neuron) & (spikes["stimPeriod"] == True)
     ]
