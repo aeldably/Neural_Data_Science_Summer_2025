@@ -292,7 +292,8 @@ def compute_sdf(
     num_points: int = 200 # Number of points to evaluate the SDF
 ):
     """
-    Computes a Spike Density Function (SDF) using Gaussian Kernel Density Estimation.
+    Computes a Spike Density Function (SDF) using 
+    Gaussian Kernel Density Estimation.
 
     Parameters:
     -----------
@@ -346,6 +347,164 @@ def compute_sdf(
 
     return time_points_eval, sdf_rate
 
+#%%
+import matplotlib.pyplot as plt
+
+def plot_single_psth_sdf_on_axes(
+    ax: plt.Axes,
+    psth_bin_centers: np.ndarray,
+    psth_rates: np.ndarray,
+    sdf_time_points: np.ndarray = None,
+    sdf_rates: np.ndarray = None,
+    stim_dur_ms: float = None,
+    title: str = "",
+    psth_color: str = 'gray',
+    sdf_color: str = 'blue',
+    show_legend: bool = True
+):
+    """
+    Plots a single binned PSTH and optionally an SDF on a given Matplotlib Axes.
+    """
+    if len(psth_bin_centers) > 0 and len(psth_rates) > 0:
+        # Calculate bin width from bin_centers for bar plot width
+        if len(psth_bin_centers) > 1:
+            bar_width = psth_bin_centers[1] - psth_bin_centers[0]
+        elif len(psth_bin_centers) == 1: # Only one bin
+            bar_width = stim_dur_ms or psth_bin_centers[0]*2 # Guess
+        else: # no bins
+            bar_width = 0
+
+        ax.bar(psth_bin_centers, psth_rates, width=bar_width*0.9,
+               color=psth_color, alpha=0.6, label='Binned PSTH')
+
+    if sdf_time_points is not None and sdf_rates is not None and len(sdf_time_points) > 0:
+        ax.plot(sdf_time_points, sdf_rates, color=sdf_color, linewidth=1.5, label='SDF (KDE)')
+
+    if stim_dur_ms:
+        ax.axvspan(0, stim_dur_ms, color='lightgray', alpha=0.3, zorder=-1, label='Stimulus ON')
+
+    ax.set_title(title)
+    ax.set_xlabel("Time relative to stimulus onset (ms)")
+    ax.set_ylabel("Firing Rate (spikes/s)")
+    ax.grid(True, linestyle=':', alpha=0.7)
+    if show_legend:
+        ax.legend(fontsize='small')
+    ax.set_xlim(left=-100 if sdf_time_points is not None and sdf_time_points.min()<0 else 0, # Adjust if showing pre-stim
+                right = stim_dur_ms + 100 if stim_dur_ms else None)
+
+
+def plot_all_conditions_psth(
+    spikes_df: pd.DataFrame,
+    neuron_id: int,
+    stim_dur_ms: float, # e.g., global stimDur
+    n_trials_per_cond: int, # e.g., global nTrials
+    compute_sdf_flag: bool = True
+):
+    """
+    Computes and plots PSTHs (and optionally SDFs) for all stimulus conditions for a neuron.
+    """
+    neuron_data = spikes_df[(spikes_df["Neuron"] == neuron_id) & (spikes_df["stimPeriod"] == True)]
+    if neuron_data.empty:
+        print(f"No spikes for neuron {neuron_id} during stimulus period.")
+        return
+
+    unique_dirs = np.sort(neuron_data["Dir"].unique())
+    if len(unique_dirs) == 0:
+        print(f"No directions found for neuron {neuron_id}.")
+        return
+
+    n_cols = 4
+    n_rows = int(np.ceil(len(unique_dirs) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 3.5 * n_rows),
+                             sharex=True, sharey=True, squeeze=False)
+    axes_flat = axes.flatten()
+    max_overall_rate = 0.0
+
+    # --- First pass to compute all data and find max rate for y-scaling ---
+    all_plot_data = []
+    psth_bin_width_used = None # To store the calculated bin width if FD rule is used once
+
+    for i, direction in enumerate(unique_dirs):
+        dir_spikes_rel_times = neuron_data[neuron_data["Dir"] == direction]["relTime"].dropna().values
+
+        # Compute Binned PSTH
+        # For consistent bin width across plots for the same neuron, calculate once if not specified
+        if i == 0 and psth_bin_width_used is None: # Calculate optimal bin width once for the neuron
+             all_neuron_rel_times = neuron_data["relTime"].dropna().values
+             if len(all_neuron_rel_times) > 1:
+                 psth_bin_width_used = np.clip(calculate_fd_bin_width(all_neuron_rel_times), 10.0, stim_dur_ms * 0.1)
+             else:
+                 psth_bin_width_used = 50.0
+             print(f"Neuron {neuron_id}: Using PSTH bin width: {psth_bin_width_used:.2f} ms")
+
+
+        psth_bc, psth_r, _ = compute_binned_psth(
+            dir_spikes_rel_times, stim_dur_ms, n_trials_per_cond, bin_width_ms=psth_bin_width_used
+        )
+        current_max = np.max(psth_r) if len(psth_r) > 0 else 0
+
+        # Compute SDF
+        sdf_tp, sdf_r = None, None
+        if compute_sdf_flag:
+            # For SDF bandwidth, could also calculate globally or use a fixed sensible value
+            # For simplicity here, let's use a fixed fraction of the PSTH bin width or None for KDE's default
+            sdf_bw = psth_bin_width_used / 2.0 if psth_bin_width_used else 25.0
+            sdf_tp, sdf_r = compute_sdf(
+                dir_spikes_rel_times, stim_dur_ms, n_trials_per_cond, kernel_bandwidth_ms=sdf_bw
+            )
+            if len(sdf_r) > 0:
+                current_max = max(current_max, np.max(sdf_r))
+
+        max_overall_rate = max(max_overall_rate, current_max)
+        all_plot_data.append({
+            "psth_bc": psth_bc, "psth_r": psth_r,
+            "sdf_tp": sdf_tp, "sdf_r": sdf_r,
+            "direction": direction
+        })
+
+    # --- Second pass to plot with consistent y-scaling ---
+    for i, data_dict in enumerate(all_plot_data):
+        ax = axes_flat[i]
+        is_left_col = (i % n_cols == 0)
+        is_last_active_row_plot = (i // n_cols == (len(unique_dirs) -1) // n_cols)
+
+        plot_single_psth_sdf_on_axes(
+            ax,
+            data_dict["psth_bc"], data_dict["psth_r"],
+            data_dict["sdf_tp"], data_dict["sdf_r"],
+            stim_dur_ms,
+            title=f"Direction {int(data_dict['direction'])}°",
+            show_legend= (i==0) # Show legend only on first plot
+        )
+        ax.set_ylim(0, max_overall_rate * 1.1 if max_overall_rate > 0 else 1.0)
+        if not is_left_col:
+            ax.set_ylabel("") # Remove y-label for non-left plots
+        if not is_last_active_row_plot:
+            ax.set_xlabel("") # Remove x-label for non-bottom plots
+
+
+    # Hide unused subplots
+    for i in range(len(all_plot_data), len(axes_flat)):
+        fig.delaxes(axes_flat[i])
+
+    fig.suptitle(f"PSTH & SDF for Neuron {neuron_id}", fontsize=16)
+    plt.tight_layout(rect=[0, 0.02, 1, 0.95])
+    plt.show()
+#%%
+# --- Example Usage ---
+# Select 5 neurons at random and plot them. 
+for i in range(10):
+    target_neuron = np.random.choice(np.unique(spikes['Neuron']))
+    # Call the main plotting function
+    # This function internally calls the computation functions
+    plot_all_conditions_psth(
+        spikes_df=spikes, # Your main spikes DataFrame
+        neuron_id=target_neuron,
+        stim_dur_ms=stimDur,
+        n_trials_per_cond=nTrials,
+        compute_sdf_flag=True # Set to False if you only want binned PSTH
+    )
+ 
 # %% [markdown]
 # ## Task 2: Plot spike density functions
 # 
