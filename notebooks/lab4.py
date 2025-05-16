@@ -504,7 +504,8 @@ for i in range(5):
         n_trials_per_cond=nTrials,
         compute_sdf_flag=True # Set to False if you only want binned PSTH
     )
- 
+
+# TODO: bin width 
 # %% [markdown]
 # ## Task 2: Plot spike density functions
 # 
@@ -676,7 +677,8 @@ plotPSTH(spikes, 1)
 
 # %%
 def vonMises(θ: np.ndarray, α: float, κ: float, ν: float, ϕ: float) -> np.ndarray:
-    """Evaluate the parametric von Mises tuning curve with parameters p at locations theta.
+    """Evaluate the parametric von Mises tuning curve 
+        with parameters p at locations theta.
 
     Parameters
     ----------
@@ -696,20 +698,44 @@ def vonMises(θ: np.ndarray, α: float, κ: float, ν: float, ϕ: float) -> np.n
     # -----------------------------------
     # Implement the Mises model (0.5 pts)
     # -----------------------------------
-
-    pass
+    return np.exp(α + κ * (np.cos(2 * (θ - ϕ)) - 1) \
+        + ν * (np.cos(θ - ϕ) - 1))
+    
 
 # %% [markdown]
-# Plot the von Mises function while varying the parameters systematically.
+# Plot the von Mises function while 
+# varying the parameters systematically.
+sns.set(style="whitegrid")
+for alpha_range in np.linspace(-10, 10, 5):
+    for kappa_range in np.linspace(0, 10, 5): 
+        plt.figure(figsize=(20, 15))
+        for nu_range in np.linspace(0, 10, 5): 
+            for phi_range in [0, 360]:
+                theta = np.linspace(0, 360, 100)
+                theta_rad = np.deg2rad(theta)
+                ϕ_rad = np.deg2rad(phi_range)
+                
+                y = vonMises(theta_rad, alpha_range, kappa_range, nu_range, ϕ_rad)
+                plt.plot(theta, y, label=f"α={alpha_range}, κ={kappa_range}, ν={nu_range}, ϕ={phi_range}")
+        plt.title("Von Mises Tuning Curve")
+        plt.xlabel("Direction (degrees)")
+        plt.ylabel("Firing Rate")
+        plt.xlim(0, 360)
+        plt.legend()
+        plt.grid()
+        plt.show()
 
 # %%
 # ------------------------------------------------------------------------------
-# plot von Mises curves with varying parameters and explain what they do (2 pts)
+# Plot von Mises curves with varying parameters 
+# and explain what they do (2 pts).
 # ------------------------------------------------------------------------------
+
 
 # %%
 def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.ndarray:
-    """Fit a von Mises tuning curve to the spike counts in count with direction dir using a least-squares fit.
+    """Fit a von Mises tuning curve to the spike counts in count with 
+    direction dir using a **least-squares fit**.
 
     Parameters
     ----------
@@ -746,7 +772,8 @@ def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.n
         pass
 
 # %% [markdown]
-# Plot tuning curve and fit for different neurons. Good candidates to check are 28, 29 or 37. 
+# Plot tuning curve and fit for different neurons. Good candidates to 
+# check are 28, 29 or 37. 
 # %%
 def get_data(spikes, neuron):
     spk_by_dir = (
@@ -773,6 +800,13 @@ def get_data(spikes, neuron):
 
     return dirs_sorted, counts_sorted
 
+#%%
+neurons_to_plot = [28, 29, 37]
+for neuron in neurons_to_plot:
+    dirs_sorted, counts_sorted = get_data(spikes, neuron)
+    print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
+    tuningCurve(counts_sorted, dirs_sorted, show=True)
+    
 # %%
 # ----------------------------------------------------------
 # plot the average number of spikes per direction, the spike 
@@ -783,8 +817,8 @@ def get_data(spikes, neuron):
 # %% [markdown]
 # ## Task 4: Permutation test for direction tuning
 # 
-# Implement a permutation test to quantitatively assess whether a 
-# neuron is direction/orientation selective. 
+# Implement a permutation test to quantitatively assess 
+# whether a neuron is direction/orientation selective. 
 # 
 # To do so, project the vector of average spike counts, 
 #       $m_k=\frac{1}{N}\sum_j x_{jk}$ 
@@ -805,7 +839,6 @@ def get_data(spikes, neuron):
 # 
 # *Grading: 3 pts*
 # 
-
 # %%
 def testTuning(
     counts: np.ndarray,
