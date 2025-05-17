@@ -1039,7 +1039,7 @@ for neuron in neurons_to_plot:
 # 
 # *Grading: 3 pts*
 # 
-# %%
+# %% Provided Template Code
 def testTuning(
     counts: np.ndarray,
     dirs: np.ndarray,
@@ -1098,6 +1098,91 @@ def testTuning(
     if show:
         # add plotting code here
         pass
+
+# %% AN - Code 
+
+# %% AN - Code 
+def testTuning(
+    counts: np.ndarray,
+    dirs: np.ndarray,
+    psi: int = 1,
+    niters: int = 1000,
+    show: bool = False,
+    random_seed: int = 2046,
+) -> Tuple[float, float, np.ndarray]:
+    """Plot the data if show is True, otherwise just return the fit.
+
+    Parameters
+    ----------
+
+    counts: np.array, shape=(total_n_trials, )
+        the spike count during the stimulation period
+
+    dirs: np.array, shape=(total_n_trials, )
+        the stimulus direction in degrees
+
+    psi: int
+        fourier component to test (1 = direction, 2 = orientation)
+
+    niters: int
+        Number of iterations / permutation
+
+    show: bool
+        Plot or not.
+
+    random_seed: int
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    p: float
+        p-value
+    q: float
+        magnitude of second Fourier component
+
+    qdistr: np.array
+        sampling distribution of |q| under the null hypothesis
+
+    """
+    # -------------------------------
+    # Calculate m, nu and q (0.5 pts)
+    # -------------------------------
+    # m - This is the vector of average spike counts for each unique stimulus direction.
+    spike_count_matrix = compute_spike_count_matrix(counts, dirs) # 'counts' and 'dirs' are 1D arrays of all trials
+    m_k = np.mean(spike_count_matrix, axis=0)  # Shape: (nUniqueDirs,)
+
+    # Get unique directions and convert to radians for v_k
+    unique_stim_directions_deg = np.unique(dirs) # These are the directions corresponding to columns of spike_count_matrix
+    theta_k_rad = np.deg2rad(unique_stim_directions_deg) # Shape: (nUniqueDirs,)
+        
+    # v_k - This is the complex exponential vector for the specified psi.
+    # It should be based on the unique radian directions theta_k_rad.
+    v_k = np.exp(1j * psi * theta_k_rad)  # Corrected: Shape: (nUniqueDirs,)
+        
+    # q - This is the projection of m_k onto v_k.
+    q_complex_observed = np.dot(m_k, v_k)
+
+    # Magnitude of the projection for the observed data.
+    # This is the 'q' to be returned and tested against null distribution.
+    q_observed_magnitude = np.abs(q_complex_observed) 
+
+    logger.info(f"Observed q magnitude: {q_observed_magnitude}")
+    logger.info(f"Observed q complex: {q_complex_observed}")
+    logger.info(f"Observed m_k: {m_k}")
+    logger.info(f"Observed v_k: {v_k}")
+    
+    # -------------------------------------------------------------------------
+    # Estimate the distribution of q under the H0 and obtain the p value (1 pt)
+    # -------------------------------------------------------------------------
+    # ensure reproducibility using a random number generator
+    # hint: access random functions of this generator
+    rng = np.random.default_rng(random_seed)
+
+
+    if show:
+        # add plotting code here
+        pass
+
 
 # %% [markdown]
 # Show null distribution for the example cell:
