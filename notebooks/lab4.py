@@ -44,12 +44,25 @@ import pandas as pd
 import scipy.optimize as opt
 import seaborn as sns
 import os
+import logging
+
+#%%
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.DEBUG,
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.info("Starting the script...")
 #%matplotlib inline
 
 #%load_ext jupyter_black
 
 #%load_ext watermark
 #%watermark --time --date --timezone --updated --python --iversions --watermark -p sklearn
+
+# %%
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # %%
 #plt.style.use("../../matplotlib_style.txt")
@@ -187,7 +200,7 @@ def plotRaster(spikes: pd.DataFrame, neuron: int):
     plt.show()
 
 #%%
-for i in range(1,40):
+for i in range(1,10):
     plotRaster(spikes, i)
 
 # %% [markdown]
@@ -348,8 +361,6 @@ def compute_sdf(
     return time_points_eval, sdf_rate
 
 #%%
-import matplotlib.pyplot as plt
-
 def plot_single_psth_sdf_on_axes(
     ax: plt.Axes,
     psth_bin_centers: np.ndarray,
@@ -413,7 +424,7 @@ def plot_all_conditions_psth(
         print(f"No directions found for neuron {neuron_id}.")
         return
 
-    n_cols = 4
+    n_cols = 5
     n_rows = int(np.ceil(len(unique_dirs) / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 3.5 * n_rows),
                              sharex=True, sharey=True, squeeze=False)
@@ -705,7 +716,7 @@ def vonMises(θ: np.ndarray, α: float, κ: float, ν: float, ϕ: float) -> np.n
 # %% [markdown]
 # Plot the von Mises function while 
 # varying the parameters systematically.
-sns.set(style="whitegrid")
+sns.set_theme(style="whitegrid")
 for alpha_range in np.linspace(-10, 10, 5):
     for kappa_range in np.linspace(0, 10, 5): 
         plt.figure(figsize=(20, 15))
@@ -732,7 +743,7 @@ for alpha_range in np.linspace(-10, 10, 5):
 # ------------------------------------------------------------------------------
 
 
-# %%
+#%% Provided Template Code
 def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.ndarray:
     """Fit a von Mises tuning curve to the spike counts in count with 
     direction dir using a **least-squares fit**.
@@ -755,10 +766,104 @@ def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.n
     p: np.array or list, (4,)
         parameter vector of tuning curve function
     """
-
     # ----------------------------------------
     # Compute the spike count matrix (0.5 pts)
     # ----------------------------------------
+
+    # ------------------------------------------------------------
+    # fit the von Mises tuning curve to the spike counts (0.5 pts)
+    # ------------------------------------------------------------
+
+
+    if show:
+        # --------------------------------------------
+        # plot the data and fitted tuning curve (1 pt)
+        # --------------------------------------------
+        pass
+#%%
+def compute_spike_count_matrix(counts: np.ndarray, dirs: np.ndarray) -> np.ndarray:
+    """Compute the spike count matrix from the counts and dirs.
+
+    Parameters
+    ----------
+    counts: np.ndarray
+        The spike counts for each trial.
+
+    dirs: np.ndarray
+        The stimulus directions for each trial.
+
+    Returns
+    -------
+    spike_count_matrix: np.ndarray
+        The computed spike count matrix.
+    """
+    unique_stim_directions_deg = np.unique(dirs)  # Shape: (nDirs,)
+    num_unique_directions = len(unique_stim_directions_deg)
+    logger.info(f"Unique stimulus directions: {unique_stim_directions_deg}")
+    logger.info(f"Number of unique stimulus directions: {num_unique_directions}")
+ 
+    # Get the unique stimulus directions, sorted. These will be the columns of our matrix.
+    unique_stim_directions_deg = np.unique(dirs)  # Shape: (nDirs,)
+    num_unique_directions = len(unique_stim_directions_deg)
+
+    # Initialize the spike count matrix `x` with shape (nTrials, nDirs)
+    # x_jk: j-th trial (row), k-th direction (column)
+    spike_count_matrix_x = np.zeros((nTrials, num_unique_directions))    
+    # Populate the matrix
+    for k_idx, direction_value in enumerate(unique_stim_directions_deg):
+        # Extract all spike counts from the 1D 'counts' array that correspond to the current 'direction_value'
+        counts_for_this_direction = counts[dirs == direction_value]
+        # The get_data function should ensure that 'counts_for_this_direction'
+        # has exactly 'nTrials' elements.
+        if len(counts_for_this_direction) == nTrials:
+            spike_count_matrix_x[:, k_idx] = counts_for_this_direction
+        else:
+            # This part handles unexpected lengths, though get_data should prevent this.
+            # If fewer than nTrials, pad with zeros (already done by get_data, but good for robustness).
+            # If more than nTrials (unlikely), take the first nTrials.
+            actual_trials_found = len(counts_for_this_direction)
+            if actual_trials_found >= nTrials:
+                spike_count_matrix_x[:, k_idx] = counts_for_this_direction[:nTrials]
+            else: # actual_trials_found < nTrials
+                spike_count_matrix_x[:actual_trials_found, k_idx] = counts_for_this_direction
+                # The remaining (nTrials - actual_trials_found) elements will stay zero 
+                # due to initialization with np.zeros.
+    return spike_count_matrix_x
+    
+#%%
+def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.ndarray:
+    """Fit a von Mises tuning curve to the spike counts in count with 
+    direction dir using a **least-squares fit**.
+
+    Parameters
+    ----------
+
+    counts: np.array, shape=(total_n_trials, )
+        the spike count during the stimulation period
+
+    dirs: np.array, shape=(total_n_trials, )
+        the stimulus direction in degrees
+
+    show: bool, default=True
+        Plot or not.
+
+
+    Return
+    ------
+    p: np.array or list, (4,)
+        parameter vector of tuning curve function
+    """
+    # ----------------------------------------
+    # Compute the spike count matrix (0.5 pts)
+    # ----------------------------------------
+    logger.info("Fitting tuning curve...")
+    logger.info(f"Counts: {counts.shape}")
+    logger.info(f"Dirs: {dirs.shape}")
+    # Get the unique stimulus directions, sorted. These will be the columns of our matrix.
+   
+    spike_count_matrix_x = compute_spike_count_matrix(counts, dirs)
+    logger.info(f"Spike count matrix shape: {spike_count_matrix_x.shape}") 
+    logger.info(f"Spike count matrix: {spike_count_matrix_x}")
 
     # ------------------------------------------------------------
     # fit the von Mises tuning curve to the spike counts (0.5 pts)
@@ -804,12 +909,21 @@ def get_data(spikes, neuron):
 neurons_to_plot = [28, 29, 37]
 for neuron in neurons_to_plot:
     dirs_sorted, counts_sorted = get_data(spikes, neuron)
-    print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
-    tuningCurve(counts_sorted, dirs_sorted, show=True)
+    result = tuningCurve(counts_sorted, dirs_sorted, show=True)
+    if result:
+        print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
+    else:
+        print(f"Neuron {neuron}: No result from tuningCurve()")
+    """
+    if result is not None:
+        print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
+    else:
+        print(f"Neuron {neuron}: No result from tuningCurve()")
+    """
     
 # %%
 # ----------------------------------------------------------
-# plot the average number of spikes per direction, the spike 
+# Plot the average number of spikes per direction, the spike 
 # counts from individual trials as well as your optimal fit 
 # for different neurons (0.5 pts)
 # ----------------------------------------------------------
@@ -828,12 +942,26 @@ for neuron in neurons_to_plot:
 # $\psi \in 1,2$ is the fourier component to test 
 # (1: direction, 2: orientation). 
 #
-# Denote the projection by $q=m^Tv$. The magnitude $|q|$ tells you how 
-# much power there is in the $\psi$-th fourier component. 
+# Denote the projection by $q=m^Tv$. 
+# The magnitude $|q|$ tells you how much power there is in the 
+# $\psi$-th fourier component. 
+#
+# Estimate the distribution of |q| under the 
+# null hypothesis that the neuron fires randomly across 
+# directions by running 1000 iterations where you repeat the 
+# same calculation as above but on a random permutation of the 
+# trials (that is, randomly shuffle the entries in the 
+# spike count matrix x). 
+#
+# The fraction of iterations for which you obtain a 
+# value more extreme than what you observed in the 
+# data is your p-value. 
+#
+# Implement this procedure in the function ```testTuning()```. 
 # 
-# Estimate the distribution of |q| under the null hypothesis that the neuron fires randomly across directions by running 1000 iterations where you repeat the same calculation as above but on a random permutation of the trials (that is, randomly shuffle the entries in the spike count matrix x). The fraction of iterations for which you obtain a value more extreme than what you observed in the data is your p-value. Implement this procedure in the function ```testTuning()```. 
-# 
-# Illustrate the test procedure for one of the cells from above. Plot the sampling distribution of |q| and indicate the value observed in the real data in your plot. 
+# Illustrate the test procedure for one of the cells from above. 
+# Plot the sampling distribution of |q| and indicate the 
+# value observed in the real data in your plot. 
 # 
 # How many cells are tuned at p < 0.01?
 # 
