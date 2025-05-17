@@ -805,7 +805,6 @@ def compute_spike_count_matrix(counts: np.ndarray, dirs: np.ndarray) -> np.ndarr
     # Get the unique stimulus directions, sorted. These will be the columns of our matrix.
     unique_stim_directions_deg = np.unique(dirs)  # Shape: (nDirs,)
     num_unique_directions = len(unique_stim_directions_deg)
-
     # Initialize the spike count matrix `x` with shape (nTrials, nDirs)
     # x_jk: j-th trial (row), k-th direction (column)
     spike_count_matrix_x = np.zeros((nTrials, num_unique_directions))    
@@ -829,7 +828,38 @@ def compute_spike_count_matrix(counts: np.ndarray, dirs: np.ndarray) -> np.ndarr
                 # The remaining (nTrials - actual_trials_found) elements will stay zero 
                 # due to initialization with np.zeros.
     return spike_count_matrix_x
-    
+#%%
+def inital_von_mises_params(mean_counts_to_fit: np.ndarray, unique_dirs_rad: np.ndarray) -> tuple:
+    """Initial guess for the von Mises parameters based on mean counts.
+    Parameters
+    ----------
+    mean_counts_to_fit: np.ndarray
+        The mean counts for each direction.
+    unique_dirs_rad: np.ndarray
+        The unique directions in radians.
+    Returns
+    -------
+    tuple: (alpha_guess, kappa_guess, nu_guess, phi_guess_rad)
+        Initial guesses for the parameters of the von Mises function.
+    """
+    # Robust initial guesses:
+    if not np.any(mean_counts_to_fit > 1e-9): # Handle cases where all mean counts are zero or tiny
+        alpha_guess = np.log(1e-6) # A small baseline
+        phi_guess_rad = 0.0        # Default preferred direction
+    else:
+        # For alpha, use log of mean of positive counts, or log of max if all else fails
+        positive_mean_counts = mean_counts_to_fit[mean_counts_to_fit > 1e-9]
+        if len(positive_mean_counts) > 0:
+            alpha_guess = np.log(np.maximum(1e-6, np.mean(positive_mean_counts)))
+        else: # Should be caught by the outer if, but as a fallback
+            alpha_guess = np.log(np.maximum(1e-6, np.max(mean_counts_to_fit)))
+        
+        phi_guess_rad = unique_dirs_rad[np.argmax(mean_counts_to_fit)]
+
+    kappa_guess = 1.0  # Initial guess for bimodal strength
+    nu_guess = 1.0     # Initial guess for unimodal strength 
+    return alpha_guess, kappa_guess, nu_guess, phi_guess_rad
+
 #%%
 def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.ndarray:
     """Fit a von Mises tuning curve to the spike counts in count with 
@@ -859,9 +889,9 @@ def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.n
     logger.info("Fitting tuning curve...")
     logger.info(f"Counts: {counts.shape}")
     logger.info(f"Dirs: {dirs.shape}")
-    # Get the unique stimulus directions, sorted. These will be the columns of our matrix.
-   
+
     spike_count_matrix_x = compute_spike_count_matrix(counts, dirs)
+    
     logger.info(f"Spike count matrix shape: {spike_count_matrix_x.shape}") 
     logger.info(f"Spike count matrix: {spike_count_matrix_x}")
 
@@ -870,11 +900,53 @@ def tuningCurve(counts: np.ndarray, dirs: np.ndarray, show: bool = True) -> np.n
     # ------------------------------------------------------------
 
 
-    if show:
-        # --------------------------------------------
-        # plot the data and fitted tuning curve (1 pt)
-        # --------------------------------------------
-        pass
+    # 1. Calculate mean spike counts per direction
+    mean_counts_to_fit = np.mean(spike_count_matrix_x, axis=0)
+    logger.info(f"Mean counts to fit: {mean_counts_to_fit}")
+    
+    # 2. Get unique directions (degrees) and convert to radians
+    # 'dirs' is the original 1D array of directions for all trials passed to tuningCurve
+    unique_stim_directions_deg = np.unique(dirs) 
+    unique_dirs_rad = np.deg2rad(unique_stim_directions_deg)
+    logger.info(f"Unique directions (radians) for fitting: {unique_dirs_rad}")
+
+    # Check if there's enough data to fit (at least as many points as parameters)
+    if len(unique_dirs_rad) < 4: # vonMises has 4 parameters
+        logger.warning(f"Not enough unique directions ({len(unique_dirs_rad)}) to fit the von Mises model. Need at least 4. Skipping fit.")
+        p_opt = None # Indicate fit failed
+    else:
+        alpha_guess, kappa_guess, nu_guess, phi_guess_rad = inital_von_mises_params(mean_counts_to_fit, unique_dirs_rad)
+        p0 = [alpha_guess, kappa_guess, nu_guess, phi_guess_rad]
+        logger.info(f"Initial parameter guesses (p0): {p0}")
+        # Bounds: alpha, kappa>=0, nu>=0, phi in [0, 2*pi]
+        bounds = ([-np.inf, 0, 0, 0], [np.inf, np.inf, np.inf, 2 * np.pi])
+        # Fit the von Mises function to the mean counts
+        # 4. Perform the non-linear least squares fit
+        try:
+            p_opt, p_cov = opt.curve_fit(
+                f=vonMises,          # Your vonMises function (make sure it's defined and accessible)
+                xdata=unique_dirs_rad,
+                ydata=mean_counts_to_fit,
+                p0=p0,
+                bounds=bounds,
+                maxfev=5000          # Maximum number of function evaluations
+            )
+            logger.info(f"Optimized parameters (p_opt): {p_opt}")
+        except RuntimeError:
+            logger.warning("RuntimeError: Optimal parameters not found during curve_fit. Fit failed.")
+            p_opt = None # Or assign np.full(4, np.nan) if you prefer NaNs for failed fits
+        except ValueError as e:
+            logger.warning(f"ValueError during curve_fit: {e}. Fit failed.")
+            p_opt = None
+
+ 
+        if show:
+            # --------------------------------------------
+            # plot the data and fitted tuning curve (1 pt)
+            # --------------------------------------------
+            pass
+        
+        return p_opt
 
 # %% [markdown]
 # Plot tuning curve and fit for different neurons. Good candidates to 
@@ -910,7 +982,7 @@ neurons_to_plot = [28, 29, 37]
 for neuron in neurons_to_plot:
     dirs_sorted, counts_sorted = get_data(spikes, neuron)
     result = tuningCurve(counts_sorted, dirs_sorted, show=True)
-    if result:
+    if len(result) == 4:
         print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
     else:
         print(f"Neuron {neuron}: No result from tuningCurve()")
