@@ -1251,7 +1251,7 @@ def testTuning(
     #    or more extreme than, the |q| observed from the original data.
     # We use smoothing to avoid p-values of 0 or 1.
     p_value = (np.sum(q_distribution_null >= q_observed_magnitude) + 1) / (niters + 1)
-    #p_value = np.sum(q_distribution_null >= q_observed_magnitude) / niters
+    # p_value = np.sum(q_distribution_null >= q_observed_magnitude) / niters
 
     # For a slightly more robust p-value, especially if niters is not huge or q_observed_magnitude is very extreme:
     # p_value_corrected = (np.sum(q_distribution_null >= q_observed_magnitude) + 1) / (niters + 1)
@@ -1287,6 +1287,102 @@ for neuron in neurons_to_plot:
 
 # %% [markdown]
 # Test all cells for orientation and direction tuning
+def test_neuron_tuning(all_neuron_ids, spikes, alpha_threshold=0.01, niters=1000):
+    """Test the tuning of a neuron for direction and orientation."""
+    tuning_results = []
+
+    for i, neuron_id in enumerate(all_neuron_ids):
+        logger.info(f"Processing neuron {i+1}/{len(all_neuron_ids)}: ID {neuron_id}...")
+
+        # Get data for the current neuron
+        dirs_sorted, counts_sorted = get_data(spikes, neuron_id)
+
+        # It's possible some neurons might have no spikes in the defined periods.
+        # get_data should produce empty or all-zero counts_sorted in such cases.
+        # testTuning should ideally handle this (e.g., result in a non-significant p-value).
+        # For instance, if all counts are 0, m_k will be 0, q_observed_magnitude will be 0,
+        # and p_value will likely be 1.0, which is correct (not selective).
+
+        # Test for direction tuning (psi=1)
+        p_direction, q_direction, _ = testTuning(
+            counts_sorted, 
+            dirs_sorted, 
+            psi=1, 
+            niters=niters, 
+            show=False # No plots for batch processing
+        )
+
+        # Test for orientation tuning (psi=2)
+        p_orientation, q_orientation, _ = testTuning(
+            counts_sorted, 
+            dirs_sorted, 
+            psi=2, 
+            niters=niters, 
+            show=False 
+        )
+
+        tuning_results.append({
+            'neuron_id': neuron_id,
+            'p_direction': p_direction,
+            'q_direction': q_direction,
+            'p_orientation': p_orientation,
+            'q_orientation': q_orientation
+        })
+        
+    return pd.DataFrame(tuning_results)
+
+#%%
+def filter_tuning_results(tuning_results_df, alpha_threshold=0.01):
+    """Filter the tuning results based on the significance level."""
+    print(f"\n--- Tuning Selectivity Results (p < {alpha_threshold}) ---")
+
+    direction_selective_neurons = tuning_results_df[tuning_results_df['p_direction'] < alpha_threshold]
+    orientation_selective_neurons = tuning_results_df[tuning_results_df['p_orientation'] < alpha_threshold]
+
+    print(f"\nDirection Selective Neurons (psi=1, p < {alpha_threshold}):")
+    if not direction_selective_neurons.empty:
+        print(direction_selective_neurons[['neuron_id', 'p_direction', 'q_direction']])
+    else:
+        print("No neurons found to be significantly direction selective at this threshold.")
+
+    print(f"\nOrientation Selective Neurons (psi=2, p < {alpha_threshold}):")
+    if not orientation_selective_neurons.empty:
+        print(orientation_selective_neurons[['neuron_id', 'p_orientation', 'q_orientation']])
+    else:
+        print("No neurons found to be significantly orientation selective at this threshold.")
+
+    # You might also be interested in neurons that are BOTH or EXCLUSIVELY one type
+    both_selective = tuning_results_df[
+        (tuning_results_df['p_direction'] < alpha_threshold) & 
+        (tuning_results_df['p_orientation'] < alpha_threshold)
+    ]
+    print(f"\nNeurons Selective for BOTH Direction and Orientation (p < {alpha_threshold}):")
+    if not both_selective.empty:
+        print(both_selective[['neuron_id', 'p_direction', 'p_orientation']])
+    else:
+        print("No neurons found to be significantly selective for both at this threshold.")
+
+    # Example: Strictly direction selective (significant for direction, not for orientation)
+    strictly_direction_selective = tuning_results_df[
+        (tuning_results_df['p_direction'] < alpha_threshold) & 
+        (tuning_results_df['p_orientation'] >= alpha_threshold)
+    ]
+    print(f"\nNeurons Strictly Direction Selective (p_dir < {alpha_threshold}, p_ori >= {alpha_threshold}):")
+    if not strictly_direction_selective.empty:
+        print(strictly_direction_selective[['neuron_id', 'p_direction', 'p_orientation']])
+    else:
+        print("No neurons found to be strictly direction selective at this threshold.")
+    return (direction_selective_neurons, 
+            orientation_selective_neurons, 
+            both_selective, 
+            strictly_direction_selective)
+    
+#%%
+neuron_tuning_results_df = test_neuron_tuning(np.unique(spikes['Neuron']), spikes, niters=1000)
+#%% Filter the results based on the significance level
+direction_selective_neurons, orientation_selective_neurons, both_selective, strictly_direction_selective = \
+    filter_tuning_results(neuron_tuning_results_df, alpha_threshold=0.001)
+
 
 # %%
 # --------------------------------------------------
