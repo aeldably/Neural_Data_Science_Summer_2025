@@ -799,8 +799,8 @@ def compute_spike_count_matrix(counts: np.ndarray, dirs: np.ndarray) -> np.ndarr
     """
     unique_stim_directions_deg = np.unique(dirs)  # Shape: (nDirs,)
     num_unique_directions = len(unique_stim_directions_deg)
-    logger.info(f"Unique stimulus directions: {unique_stim_directions_deg}")
-    logger.info(f"Number of unique stimulus directions: {num_unique_directions}")
+    logger.debug(f"Unique stimulus directions: {unique_stim_directions_deg}")
+    logger.debug(f"Number of unique stimulus directions: {num_unique_directions}")
  
     # Get the unique stimulus directions, sorted. These will be the columns of our matrix.
     unique_stim_directions_deg = np.unique(dirs)  # Shape: (nDirs,)
@@ -1100,6 +1100,64 @@ def testTuning(
         pass
 
 # %% AN - Code 
+def compute_null_distribution(
+    counts: np.ndarray,
+    dirs: np.ndarray,
+    v_k: np.ndarray,
+    niters: int,
+   rng: np.random.Generator) -> np.ndarray:
+    """Compute the null distribution of |q| under the null hypothesis.
+
+    Parameters
+    ----------
+    counts: np.ndarray
+        The spike counts for each trial.
+
+    dirs: np.ndarray
+        The stimulus directions for each trial.
+
+    v_k: np.ndarray
+        The complex exponential vector for the specified psi.
+
+    niters: int
+        Number of iterations for the permutation test.
+
+    rng: np.random.Generator
+        Random number generator for reproducibility. 
+    Returns
+    -------
+    q_distribution_null: np.ndarray
+        The computed null distribution of |q|.
+
+    """
+    # Initialize an array to store the |q| values from each permutation
+    q_distribution_null = np.zeros(niters)
+    logger.info(f"Starting permutation test with {niters} iterations...")
+    
+    # Loop over the number of iterations
+    for i in range(niters):
+        # 1. Permute the data: Shuffle the spike counts randomly across all trials.
+        shuffled_trial_counts = rng.permutation(counts)
+        
+        # 2. Recalculate m_k (average spike count per direction) for this permuted dataset.
+        permuted_spike_matrix = compute_spike_count_matrix(shuffled_trial_counts, dirs)
+        m_k_permuted = np.mean(permuted_spike_matrix, axis=0)
+        
+        # 3. Recalculate |q| using the permuted m_k_permuted and the *original* v_k.
+        # v_k does not change because it depends on the stimulus directions and psi,
+        # which are fixed.
+        q_complex_permuted = np.dot(m_k_permuted, v_k)
+        q_magnitude_permuted = np.abs(q_complex_permuted)
+        
+        # 4. Store the magnitude from this permutation.
+        q_distribution_null[i] = q_magnitude_permuted
+        
+        if (i + 1) % (niters // 10) == 0: # Log progress every 10%
+            logger.debug(f"Permutation iteration {i+1}/{niters} completed.")
+
+    logger.info("Permutation test finished.")
+    
+    return q_distribution_null
 
 # %% AN - Code 
 def testTuning(
@@ -1174,15 +1232,44 @@ def testTuning(
     # -------------------------------------------------------------------------
     # Estimate the distribution of q under the H0 and obtain the p value (1 pt)
     # -------------------------------------------------------------------------
-    # ensure reproducibility using a random number generator
-    # hint: access random functions of this generator
+    # Ensure reproducibility using a random number generator
+    # Hint: Access random functions of this generator
     rng = np.random.default_rng(random_seed)
 
+    # 1-4. Compute the null distribution of |q| under the null hypothesis
+    #    by running niters iterations where you repeat the same calculation as above
+    #    but on a random permutation of the trials (that is, randomly shuffle the entries in the spike count matrix x).
+    #    This is done in the compute_null_distribution function.
+    #    The q_distribution_null is the array of |q| values from the null distribution.
+    #    The function compute_null_distribution is defined above.
+    #    It takes the counts, dirs, v_k, niters, and rng as inputs.
+    q_distribution_null = compute_null_distribution(counts=counts, dirs=dirs,
+                                                    v_k=v_k, niters=niters, rng=rng)
+    
+    # 5. Calculate the p-value.
+    #    This is the proportion of permuted |q| values that are as extreme as,
+    #    or more extreme than, the |q| observed from the original data.
+    p_value = np.sum(q_distribution_null >= q_observed_magnitude) / niters
+
+    # For a slightly more robust p-value, especially if niters is not huge or q_observed_magnitude is very extreme:
+    # p_value_corrected = (np.sum(q_distribution_null >= q_observed_magnitude) + 1) / (niters + 1)
+    # You can choose which one to use; the simpler one is fine for this lab typically.
+    logger.info(f"Observed |q|: {q_observed_magnitude:.4f}, Calculated p-value: {p_value:.35f}")
 
     if show:
-        # add plotting code here
+        # Add plotting code here
         pass
+    
+    # The array q_distribution_null is the 'qdistr' to be returned.
+    qdistr = q_distribution_null
+    return p_value, q_observed_magnitude, qdistr
 
+
+
+#%%
+p_value, q_observed_magnitude, qdistr = \
+    testTuning(counts_sorted, dirs_sorted, psi=2, show=True, niters=1000)
+logger.info(f"p-value: {p_value}, q_observed_magnitude: {q_observed_magnitude}")
 
 # %% [markdown]
 # Show null distribution for the example cell:
