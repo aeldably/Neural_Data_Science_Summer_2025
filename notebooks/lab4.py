@@ -1224,10 +1224,10 @@ def testTuning(
     # This is the 'q' to be returned and tested against null distribution.
     q_observed_magnitude = np.abs(q_complex_observed) 
 
-    logger.info(f"Observed q magnitude: {q_observed_magnitude}")
-    logger.info(f"Observed q complex: {q_complex_observed}")
-    logger.info(f"Observed m_k: {m_k}")
-    logger.info(f"Observed v_k: {v_k}")
+    logger.debug(f"Observed q magnitude: {q_observed_magnitude}")
+    logger.debug(f"Observed q complex: {q_complex_observed}")
+    logger.debug(f"Observed m_k: {m_k}")
+    logger.debug(f"Observed v_k: {v_k}")
     
     # -------------------------------------------------------------------------
     # Estimate the distribution of q under the H0 and obtain the p value (1 pt)
@@ -1267,10 +1267,23 @@ def testTuning(
 
 
 #%%
-p_value, q_observed_magnitude, qdistr = \
-    testTuning(counts_sorted, dirs_sorted, psi=2, show=True, niters=1000)
-logger.info(f"p-value: {p_value}, q_observed_magnitude: {q_observed_magnitude}")
-
+neurons_to_plot = [28, 29, 37]
+for neuron in neurons_to_plot:
+    dirs_sorted, counts_sorted = get_data(spikes, neuron)
+    result = tuningCurve(counts_sorted, dirs_sorted, show=True)
+    for psi in [0, 1, 2]:
+        p_value, q_observed_magnitude, qdistr = testTuning(counts_sorted, dirs_sorted, psi=2, show=True, niters=10000)
+        logger.info(f"Neuron:{neuron} psi:{psi} ->  p-value: {p_value}, q_observed_magnitude: {q_observed_magnitude}")
+    """
+    if len(result) == 4:
+        print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
+    else:
+        print(f"Neuron {neuron}: No result from tuningCurve()")
+    if result is not None:
+        print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
+    else:
+        print(f"Neuron {neuron}: No result from tuningCurve()")
+    """
 # %% [markdown]
 # Show null distribution for the example cell:
 
@@ -1298,6 +1311,5 @@ logger.info(f"p-value: {p_value}, q_observed_magnitude: {q_observed_magnitude}")
 # Number of orientation tuned neurons:
 
 # %%
-
 
 
