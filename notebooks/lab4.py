@@ -232,6 +232,130 @@ def calculate_fd_bin_width(data: np.ndarray) -> float:
     bin_width = 2 * iqr * (len(data) ** (-1/3))
     return bin_width if bin_width > 0 else 20.0
 
+#%%
+def compute_optimal_bin_width_ss(
+    spike_times_pooled: np.ndarray,
+    observation_period_T: float,
+    n_trials_for_rate_scaling: int,
+    min_bins: int = 2,
+    max_bins: int = 200  # Practical upper limit for number of bins
+) -> float:
+    """
+    Finds the optimal histogram bin width using the Shimazaki & Shinomoto (2007) method.
+    Parameters:
+    ----------
+    spike_times_pooled : np.ndarray
+        A 1D array of all spike times (e.g., relative to stimulus onset) for which
+        the optimal bin width is to be determined. These should be all spikes
+        that would contribute to the histogram(s) you want to use this bin width for.
+        For a single optimal bin width for a neuron's PSTH plot, this would be
+        all relative spike times for that neuron across all conditions.
+    observation_period_T : float
+        The total duration of the observation window for the spike times (e.g., stimDur).
+    n_trials_for_rate_scaling : int
+        The number of trials 'n' used in the denominator of the cost function (n*delta)^2.
+        Typically, this would be the number of trials per condition if k_i in the cost
+        function represents counts summed over those trials. If spike_times_pooled is
+        from a single condition, this is nTrials for that condition. If spike_times_pooled
+        is aggregated over many conditions for a single neuron to find one common delta,
+        this 'n' often remains nTrials per condition as a reference scaling.
+    min_bins : int, optional
+        Minimum number of bins to consider. Defaults to 2.
+    max_bins : int, optional
+        Maximum number of bins to consider. Defaults to 200.
+        This also prevents delta from becoming excessively small.
+
+    Returns:
+    -------
+    float
+        The optimal bin width (delta) in the same units as observation_period_T.
+        Returns a default if calculation is problematic.
+    """
+    if not isinstance(spike_times_pooled, np.ndarray):
+        spike_times_pooled = np.array(spike_times_pooled)
+
+    # Filter spike times to be within the observation period [0, T]
+    # This is important if spike_times_pooled might contain times outside this range.
+    # Assuming 0 is the start of the observation period.
+    valid_spike_times = spike_times_pooled[
+        (spike_times_pooled >= 0) & (spike_times_pooled <= observation_period_T)
+    ]
+
+    if len(valid_spike_times) == 0:
+        logger.warning("No spikes found in the observation period. Returning a default bin width.")
+        # Default to a reasonable number of bins, e.g., 20, if no spikes.
+        return observation_period_T / 20
+
+    if n_trials_for_rate_scaling <= 0:
+        raise ValueError("n_trials_for_rate_scaling must be positive.")
+    if observation_period_T <= 0:
+        raise ValueError("observation_period_T must be positive.")
+
+    # Adjust max_bins if it's too small relative to min_bins or too large for data
+    # Heuristic: at least 2 spikes per bin on average if possible, but not more than max_bins
+    max_bins_heuristic = max(min_bins + 1, int(len(valid_spike_times) / 2))
+    actual_max_bins = min(max_bins, max_bins_heuristic)
+    if actual_max_bins < min_bins: # Ensure max_bins is not less than min_bins
+        actual_max_bins = min_bins + 5 # Allow a small search range if very few spikes
+        if actual_max_bins <= min_bins: # e.g. if min_bins was 2, max_bins_heuristic was 2
+            actual_max_bins = min_bins +1 # Need at least two distinct N_b values
+
+    candidate_N_bins = np.arange(min_bins, actual_max_bins + 1)
+    if len(candidate_N_bins) == 0: # Should not happen with above logic, but as a safeguard
+        logger.warning("Could not determine a valid range for number of bins. Returning default.")
+        return observation_period_T / 20
+
+
+    costs = np.full_like(candidate_N_bins, np.inf, dtype=float)
+    actual_deltas = np.zeros_like(candidate_N_bins, dtype=float)
+
+    for i, N_b in enumerate(candidate_N_bins):
+        delta = observation_period_T / N_b
+        actual_deltas[i] = delta
+
+        if delta <= 0: # Should not happen if T > 0 and N_b > 0
+            costs[i] = np.inf
+            continue
+            
+        # Define histogram edges from 0 to observation_period_T
+        edges = np.linspace(0, observation_period_T, N_b + 1)
+        
+        # k_i: count of spikes from ALL n_trials (as represented in spike_times_pooled)
+        # that fall into i-th bin
+        k_counts_per_bin, _ = np.histogram(valid_spike_times, bins=edges)
+        
+        if len(k_counts_per_bin) < 1 : # Should be N_b, so this case is unlikely with N_b >= min_bins
+            costs[i] = np.inf
+            continue
+
+        k_bar = np.mean(k_counts_per_bin)
+        variance_k = np.var(k_counts_per_bin) # np.var uses N_b as denominator
+
+        # Cost function C_n(delta) = (2*k_bar - variance_k) / ( (n_trials_for_rate_scaling * delta)**2 )
+        denominator = (n_trials_for_rate_scaling * delta)**2
+        if denominator < 1e-9: # Avoid division by zero or extremely small numbers
+            costs[i] = np.inf
+        else:
+            costs[i] = (2 * k_bar - variance_k) / denominator
+    
+    # Find the delta corresponding to the minimum cost
+    # Handle cases where all costs might be inf or nan
+    valid_costs_indices = np.where(np.isfinite(costs))[0]
+    if len(valid_costs_indices) == 0:
+        logger.warning("All calculated costs were non-finite. Returning a default bin width.")
+        return observation_period_T / 20 # Default to 20 bins
+        
+    min_cost_idx_overall = np.nanargmin(costs) # Finds index of min, ignoring NaNs if any
+    optimal_delta = actual_deltas[min_cost_idx_overall]
+    
+    logger.debug(f"Candidate N_bins: {candidate_N_bins}")
+    logger.debug(f"Calculated Deltas: {actual_deltas}")
+    logger.debug(f"Calculated Costs: {costs}")
+    logger.debug(f"Min cost index: {min_cost_idx_overall}, Optimal Delta: {optimal_delta}")
+
+    return optimal_delta
+
+
 # --- Computation for Binned PSTH ---
 def compute_binned_psth(
     spike_times: np.ndarray,
