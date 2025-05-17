@@ -1249,7 +1249,9 @@ def testTuning(
     # 5. Calculate the p-value.
     #    This is the proportion of permuted |q| values that are as extreme as,
     #    or more extreme than, the |q| observed from the original data.
-    p_value = np.sum(q_distribution_null >= q_observed_magnitude) / niters
+    # We use smoothing to avoid p-values of 0 or 1.
+    p_value = (np.sum(q_distribution_null >= q_observed_magnitude) + 1) / (niters + 1)
+    #p_value = np.sum(q_distribution_null >= q_observed_magnitude) / niters
 
     # For a slightly more robust p-value, especially if niters is not huge or q_observed_magnitude is very extreme:
     # p_value_corrected = (np.sum(q_distribution_null >= q_observed_magnitude) + 1) / (niters + 1)
@@ -1265,25 +1267,16 @@ def testTuning(
     return p_value, q_observed_magnitude, qdistr
 
 
-
 #%%
 neurons_to_plot = [28, 29, 37]
 for neuron in neurons_to_plot:
     dirs_sorted, counts_sorted = get_data(spikes, neuron)
     result = tuningCurve(counts_sorted, dirs_sorted, show=True)
     for psi in [0, 1, 2]:
-        p_value, q_observed_magnitude, qdistr = testTuning(counts_sorted, dirs_sorted, psi=2, show=True, niters=10000)
+        p_value, q_observed_magnitude, qdistr = testTuning(counts_sorted, dirs_sorted, 
+                                                           psi=psi, show=True, niters=10000)
         logger.info(f"Neuron:{neuron} psi:{psi} ->  p-value: {p_value}, q_observed_magnitude: {q_observed_magnitude}")
-    """
-    if len(result) == 4:
-        print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
-    else:
-        print(f"Neuron {neuron}: No result from tuningCurve()")
-    if result is not None:
-        print(f"Neuron {neuron}: dirs_sorted.shape = {dirs_sorted.shape}, counts_sorted.shape = {counts_sorted.shape}")
-    else:
-        print(f"Neuron {neuron}: No result from tuningCurve()")
-    """
+
 # %% [markdown]
 # Show null distribution for the example cell:
 
