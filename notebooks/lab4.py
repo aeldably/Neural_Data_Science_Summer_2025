@@ -1540,8 +1540,17 @@ def filter_tuning_results(tuning_results_df, alpha_threshold=0.01):
 neuron_tuning_results_df = test_neuron_tuning(np.unique(spikes['Neuron']), spikes, niters=1000)
 #%% Filter the results based on the significance level
 direction_selective_neurons, orientation_selective_neurons, both_selective, strictly_direction_selective = \
-    filter_tuning_results(neuron_tuning_results_df, alpha_threshold=0.001)
+    filter_tuning_results(neuron_tuning_results_df, alpha_threshold=0.01)
 
+#%%
+
+num_direction_tuned = len(direction_selective_neurons)
+num_orientation_tuned = len(orientation_selective_neurons)
+num_both_tuned = len(both_selective) # 'both_selective' from your filter_tuning_results
+
+total_unique_tuned_cells = num_direction_tuned + num_orientation_tuned - num_both_tuned
+
+print(f"Total number of unique neurons showing any tuning (direction or orientation, p < 0.01): {total_unique_tuned_cells}")
 
 # %%
 # --------------------------------------------------
@@ -1551,13 +1560,15 @@ direction_selective_neurons, orientation_selective_neurons, both_selective, stri
 
 # %% [markdown]
 # Number of direction tuned neurons:
-
+print(f"Number of direction selective neurons: {len(direction_selective_neurons)}")
 # %%
 
 
 # %% [markdown]
 # Number of orientation tuned neurons:
-
+print(f"Number of orientation selective neurons: {len(orientation_selective_neurons)}")
 # %%
+print(f"Number of neurons selective for both: {len(both_selective)}")
+print(f"Number of strictly direction selective neurons: {len(strictly_direction_selective)}")
 
 
