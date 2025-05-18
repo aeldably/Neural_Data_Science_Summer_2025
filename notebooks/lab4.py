@@ -1284,6 +1284,41 @@ def compute_null_distribution(
     
     return q_distribution_null
 
+#%%
+def plot_null_distribution(q_distribution_null: np.ndarray, 
+                           q_observed_magnitude: float, 
+                           niters: int, 
+                           title: str = "Null Distribution of |q|"):
+    """Plot the null distribution of |q| and the observed |q|.
+
+    Parameters
+    ----------
+    q_distribution_null: np.ndarray
+        The computed null distribution of |q|.
+
+    q_observed_magnitude: float
+        The observed magnitude of |q| from the original data.
+
+    niters: int
+        Number of iterations for the permutation test.
+    """
+    plt.figure(figsize=(8, 6))
+    
+    # Plot the histogram of the null distribution
+    plt.hist(q_distribution_null, bins=50, density=True, alpha=0.7, color='skyblue', 
+             label=f'Null Distribution of |q|\n({niters} permutations)')
+    
+    # Add a vertical line for the observed |q|
+    plt.axvline(x=q_observed_magnitude, color='red', linestyle='--', linewidth=2,
+                label=f'Observed |q| = {q_observed_magnitude:.4f}')
+    
+    plt.title(title)
+    plt.xlabel('|q|')
+    plt.ylabel('Density')
+    plt.legend()
+    plt.grid()
+    plt.show()
+
 # %% AN - Code 
 def testTuning(
     counts: np.ndarray,
@@ -1384,9 +1419,8 @@ def testTuning(
     logger.info(f"Observed |q|: {q_observed_magnitude:.4f}, Calculated p-value: {p_value:.35f}")
 
     if show:
-        # Add plotting code here
-        pass
-    
+        title = f"Null Distribution Neuron:{neuron} $\Psi$ : {psi}  P Value: {p_value:.05f}"
+        plot_null_distribution(q_distribution_null, q_observed_magnitude, niters, title=title)
     # The array q_distribution_null is the 'qdistr' to be returned.
     qdistr = q_distribution_null
     return p_value, q_observed_magnitude, qdistr
@@ -1397,7 +1431,7 @@ neurons_to_plot = [28, 29, 37]
 for neuron in neurons_to_plot:
     dirs_sorted, counts_sorted = get_data(spikes, neuron)
     result = tuningCurve(counts_sorted, dirs_sorted, show=True)
-    for psi in [0, 1, 2]:
+    for psi in [1, 2]:
         p_value, q_observed_magnitude, qdistr = testTuning(counts_sorted, dirs_sorted, 
                                                            psi=psi, show=True, niters=10000)
         logger.info(f"Neuron:{neuron} psi:{psi} ->  p-value: {p_value}, q_observed_magnitude: {q_observed_magnitude}")
