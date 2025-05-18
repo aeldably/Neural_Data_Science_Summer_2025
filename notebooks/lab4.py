@@ -242,6 +242,7 @@ def compute_optimal_bin_width_ss(
 ) -> float:
     """
     Finds the optimal histogram bin width using the Shimazaki & Shinomoto (2007) method.
+    
     Parameters:
     ----------
     spike_times_pooled : np.ndarray
