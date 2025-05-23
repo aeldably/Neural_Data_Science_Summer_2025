@@ -313,6 +313,8 @@ c, r, s = sample_lnp(w, nT, dt, R, s_i)
 # Plot the stimulus for one frame, the cell's response 
 # over time and the spike count vs firing rate.
 
+
+
 # %%
 mosaic = [["stim", "responses", "count/rate"]]
 
@@ -322,7 +324,29 @@ fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(15, 4))
 # Plot the stimulus for one frame, the cell's responses 
 # over time and spike count vs firing rate (1 pt)
 # -----------------------------------------------------------------------------------------------------------
+# Reshape it back to 2D (assuming it was a DxD image, e.g., 15x15)
+# D should be the side dimension of your square stimulus image (e.g., 15)
+# Make sure D*D matches stim_frame_to_plot_flat.shape[0]
+stim_frame_to_plot_flat = s[:, 0]  # Get the first frame
+stim_frame_2d = stim_frame_to_plot_flat.reshape((D, D))
+# Plot using imshow
+im = ax["stim"].imshow(stim_frame_2d, cmap='gray') # 'gray' or 'binary' colormap often used for checkerboards
+ax["stim"].set_title(f"Stimulus Frame 0 ({D}x{D})")
+ax["stim"].set_xticks([]) # Optional: remove x-axis ticks
+ax["stim"].set_yticks([]) # Optional: remove y-axis ticks
 
+time_axis = np.arange(nT) * dt
+ax["responses"].plot(time_axis, r, label='Mean Firing Rate $r_t$')
+ax["responses"].stem(time_axis, c, linefmt='grey', markerfmt='.', basefmt=" ", label='Spike Counts $c_t$') # use_line_collection for newer matplotlib
+ax["responses"].set_xlabel("Time (s)")
+ax["responses"].set_ylabel("Rate / Spikes")
+ax["responses"].set_title("Cell's Response Over Time")
+ax["responses"].legend()
+
+ax["count/rate"].scatter(r, c, alpha=0.5, s=10) # s is marker size
+ax["count/rate"].set_xlabel("Mean Firing Rate $r_t$")
+ax["count/rate"].set_ylabel("Spike Count $c_t$")
+ax["count/rate"].set_title("Spike Count vs. Firing Rate")
 # %% [markdown]
 # ### Implementation (3 pts)
 # 
