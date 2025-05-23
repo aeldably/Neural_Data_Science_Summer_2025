@@ -314,9 +314,10 @@ c, r, s = sample_lnp(w, nT, dt, R, s_i)
 # over time and the spike count vs firing rate.
 
 # %%
-mosaic = mosaic = [["stim", "responses", "count/rate"]]
+mosaic = [["stim", "responses", "count/rate"]]
 
 fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(15, 4))
+
 # -----------------------------------------------------------------------------------------------------------
 # Plot the stimulus for one frame, the cell's responses 
 # over time and spike count vs firing rate (1 pt)
