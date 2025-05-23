@@ -316,6 +316,71 @@ c, r, s = sample_lnp(w, nT, dt, R, s_i)
 
 
 # %%
+def plot_spike_count_vs_firing_rate(r, c, ax):
+    """
+    Plot spike count vs firing rate.
+
+    Args:
+        r (np.ndarray): Mean firing rate.
+        c (np.ndarray): Spike counts.
+        ax (matplotlib.axes.Axes): Axes to plot on.
+    """
+    ax.scatter(r, c, alpha=0.5, s=10)  # s is marker size
+    ax.set_xlabel("Mean Firing Rate $r_t$")
+    ax.set_ylabel("Spike Count $c_t$")
+    ax.set_title("Spike Count vs. Firing Rate")
+
+def plot_cell_response_over_time(r, c, dt, ax):
+    """
+    Plot cell's response over time.
+
+    Args:
+        r (np.ndarray): Mean firing rate.
+        c (np.ndarray): Spike counts.
+        dt (float): Duration of a frame in seconds.
+        ax (matplotlib.axes.Axes): Axes to plot on.
+    """
+    time_axis = np.arange(len(r)) * dt
+    ax.plot(time_axis, r, label='Mean Firing Rate $r_t$')
+    ax.stem(time_axis, c, linefmt='grey', markerfmt='.', basefmt=" ", label='Spike Counts $c_t$')  # use_line_collection for newer matplotlib
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Rate / Spikes")
+    ax.set_title("Cell's Response Over Time")
+    ax.legend()
+def plot_stimulus_frame(stim_frame, D, ax):
+    """
+    Plot a stimulus frame.
+    Args:
+        stim_frame (np.ndarray): Flattened stimulus frame.
+        D (int): Side dimension of the square stimulus image.
+        ax (matplotlib.axes.Axes): Axes to plot on.
+    """
+    # Reshape it back to 2D (assuming it was a DxD image, e.g., 15x15)
+    stim_frame_2d = stim_frame.reshape((D, D))
+    # Plot using imshow
+    im = ax.imshow(stim_frame_2d, cmap='gray')  # 'gray' or 'binary' colormap often used for checkerboards
+    ax.set_title(f"Stimulus Frame ({D}x{D})")
+    ax.set_xticks([])  # Optional: remove x-axis ticks
+    ax.set_yticks([])  # Optional: remove y-axis ticks 
+
+def plot_all(ax, stim_frame, r, c, dt, D, save_path=None):
+    """
+    Plot all components: stimulus frame, cell's response over time, and spike count vs firing rate.
+    Args:
+        ax (matplotlib.axes.Axes): Axes to plot on.
+        stim_frame (np.ndarray): Flattened stimulus frame.
+        r (np.ndarray): Mean firing rate.
+        c (np.ndarray): Spike counts.
+        dt (float): Duration of a frame in seconds.
+        D (int): Side dimension of the square stimulus image.
+    """
+    plot_stimulus_frame(stim_frame, D, ax["stim"])
+    plot_cell_response_over_time(r, c, dt, ax["responses"])
+    plot_spike_count_vs_firing_rate(r, c, ax["count/rate"])
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+        
 mosaic = [["stim", "responses", "count/rate"]]
 
 fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(15, 4))
@@ -324,29 +389,16 @@ fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(15, 4))
 # Plot the stimulus for one frame, the cell's responses 
 # over time and spike count vs firing rate (1 pt)
 # -----------------------------------------------------------------------------------------------------------
+
 # Reshape it back to 2D (assuming it was a DxD image, e.g., 15x15)
 # D should be the side dimension of your square stimulus image (e.g., 15)
 # Make sure D*D matches stim_frame_to_plot_flat.shape[0]
 stim_frame_to_plot_flat = s[:, 0]  # Get the first frame
 stim_frame_2d = stim_frame_to_plot_flat.reshape((D, D))
-# Plot using imshow
-im = ax["stim"].imshow(stim_frame_2d, cmap='gray') # 'gray' or 'binary' colormap often used for checkerboards
-ax["stim"].set_title(f"Stimulus Frame 0 ({D}x{D})")
-ax["stim"].set_xticks([]) # Optional: remove x-axis ticks
-ax["stim"].set_yticks([]) # Optional: remove y-axis ticks
 
-time_axis = np.arange(nT) * dt
-ax["responses"].plot(time_axis, r, label='Mean Firing Rate $r_t$')
-ax["responses"].stem(time_axis, c, linefmt='grey', markerfmt='.', basefmt=" ", label='Spike Counts $c_t$') # use_line_collection for newer matplotlib
-ax["responses"].set_xlabel("Time (s)")
-ax["responses"].set_ylabel("Rate / Spikes")
-ax["responses"].set_title("Cell's Response Over Time")
-ax["responses"].legend()
+plot_all(ax, stim_frame_2d, r, c, dt, D, save_path='stimulus_plot.png')
+plt.show()
 
-ax["count/rate"].scatter(r, c, alpha=0.5, s=10) # s is marker size
-ax["count/rate"].set_xlabel("Mean Firing Rate $r_t$")
-ax["count/rate"].set_ylabel("Spike Count $c_t$")
-ax["count/rate"].set_title("Spike Count vs. Firing Rate")
 # %% [markdown]
 # ### Implementation (3 pts)
 # 
