@@ -396,7 +396,7 @@ fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(15, 4))
 stim_frame_to_plot_flat = s[:, 0]  # Get the first frame
 stim_frame_2d = stim_frame_to_plot_flat.reshape((D, D))
 
-plot_all(ax, stim_frame_2d, r, c, dt, D, save_path='stimulus_plot.png')
+plot_all(ax, stim_frame_2d, r, c, dt, D, save_path='../images/stimulus_plot.png')
 plt.show()
 
 # %% [markdown]
@@ -729,6 +729,7 @@ for i, lag in enumerate(delta):
     fig.colorbar(ax[lag].images[0], ax=ax[lag], orientation='vertical', fraction=0.046, pad=0.04)   
     
 plt.suptitle("Fitted Receptive Fields for Different Time Lags", fontsize=16)
+plt.savefig("../images/fitted_rf_lags.png")
 plt.show()
 
 # %% [markdown]
