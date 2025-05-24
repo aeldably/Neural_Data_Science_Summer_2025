@@ -696,7 +696,7 @@ def fit_rf_for_lag(
         print(f"An error occurred during optimization for lag {lag_value}: {e}")
         return np.zeros(num_pixels)
 # fit for each delay
-
+dt_real = np.median(np.diff(trigger))
 w_hat = np.zeros((300, 5))  # Initialize the array to store the receptive fields
 for i, lag in enumerate(delta):
     w_hat[:, i] = fit_rf_for_lag(
@@ -704,7 +704,7 @@ for i, lag in enumerate(delta):
         full_stimulus_matrix=s,
         full_counts_vector=spike_counts_per_frame,
         num_pixels=300,  # 20 * 15 = 300
-        dt_param=0.5,  # 500 ms
+        dt_param=dt_real,  # 500 ms
         R_param=50,  # Rate parameter
         initial_w_guess=None,  # Use default small random guess
         optimizer_method='L-BFGS-B'  # Default method
@@ -831,7 +831,7 @@ ax["Temporal"].set_xlabel("Time Lag (frames)")
 ax["Temporal"].set_ylabel("Weight/Strength")
 ax["Temporal"].axhline(0, color='grey', linestyle='--', linewidth=0.7) # Add a zero line
 ax["Temporal"].set_xticks(time_lags_for_plot) # Ensure all lags are shown as ticks
-# add plot
+# Add plot
 plt.suptitle("SVD Decomposition of Receptive Field", fontsize=16)
 plt.savefig("../images/svd_rf_components.png")
 plt.show()
@@ -839,46 +839,162 @@ plt.show()
 # %% [markdown]
 # # Task 4: Regularized receptive field
 # 
-# As you can see, maximum likelihood estimation of linear receptive fields can be quite noisy, if little data is available. 
+# As you can see, maximum likelihood estimation of 
+# linear receptive fields can be quite noisy, if little data is 
+# available. 
 # 
-# To improve on this, one can regularize the receptive field vector and a term to the cost function
+# To improve on this, one can regularize the 
+# receptive field vector and a term to the cost function
 # 
 # 
 # $$
 # C(w) = L(w) + \alpha ||w||_p^2
 # $$
 # 
-# Here, the $p$ indicates which norm of $w$ is used: for $p=2$, this is shrinks all coefficient equally to zero; for $p=1$, it favors sparse solutions, a penality also known as lasso. Because the 1-norm is not smooth at zero, it is not as straightforward to implement "by hand". 
+# Here, the $p$ indicates which norm of $w$ is used: for $p=2$, this 
+# is shrinks all coefficient equally to zero; for $p=1$, it favors 
+# sparse solutions, a penality also known as lasso. 
+# Because the 1-norm is not smooth at zero, it is not as 
+# straightforward to implement "by hand". 
 # 
-# Use a toolbox with an implementation of the lasso-penalization and fit the receptive field. Possibly, you will have to try different values of the regularization parameter $\alpha$. Plot your estimates from above and the lasso-estimates. How do they differ? What happens when you increase or decrease $alpha$?
+# Use a toolbox with an implementation of the 
+# lasso-penalization and fit the receptive field. 
+#
+# Possibly, you will have to try different values of the 
+# regularization parameter $\alpha$.
+#
+# Plot your estimates from above and the lasso-estimates. 
+#
+# How do they differ? 
+#
+# What happens when you increase or decrease $alpha$?
 # 
-# If you want to keep the Poisson noise model, you can use the implementation in [`pyglmnet`](https://pypi.python.org/pypi/pyglmnet). Otherwise, you can also resort to the linear model from `sklearn` which assumes Gaussian noise (which in my hands was much faster).
+# If you want to keep the Poisson noise model, you can use the 
+# implementation in [`pyglmnet`](https://pypi.python.org/pypi/pyglmnet). Otherwise, you can also resort to the linear model from `sklearn` which assumes Gaussian noise (which in my hands was much faster).
 # 
 # *Grading: 3 pts*
 # 
 
 # %%
-from sklearn import linear_model
 
+#%%
+from pyglmnet import GLM
+
+import numpy as np
+#%%
+def fit_lasso_rf(
+    full_stimulus_matrix: np.ndarray, # Original s (num_pixels, num_total_frames)
+    full_counts_vector: np.ndarray,   # Original c_binned (num_total_frames,)
+    lag: int = 0,
+    reg_strength: float = 0.1, # This is the 'alpha' from your task's formula C(w)=L(w)+alpha*||w||_1
+    max_iter: int = 1000,
+    tol: float = 1e-4,
+    learning_rate: float = 0.01 # Added learning rate, may need tuning
+) -> np.ndarray:
+    """
+    Fit a Lasso regularized receptive field using pyglmnet for a specific lag.
+
+    Args:
+        full_stimulus_matrix (np.ndarray): Stimulus matrix (Dx * Dy, nT).
+        full_counts_vector (np.ndarray): Spike counts (nT,).
+        lag (int): Time lag to apply.
+        reg_strength (float): Regularization strength (lambda in pyglmnet).
+        max_iter (int): Maximum number of iterations for optimization.
+        tol (float): Tolerance for convergence.
+        learning_rate (float): Learning rate for the optimizer.
+
+    Returns:
+        np.ndarray: Estimated receptive field (Dx * Dy,), or zeros if fit fails.
+    """
+    num_pixels = full_stimulus_matrix.shape[0]
+    
+    if lag == 0:
+        stim_for_lag_samples = full_stimulus_matrix.T 
+        counts_for_lag = full_counts_vector          
+    else:
+        if lag >= full_stimulus_matrix.shape[1] or lag >= len(full_counts_vector):
+            print(f"Lag value {lag} is too large for data length. Returning zeros.")
+            return np.zeros(num_pixels)
+        # Stimulus at t-lag predicts spikes at t
+        stim_for_lag_samples = full_stimulus_matrix[:, :-lag].T 
+        counts_for_lag = full_counts_vector[lag:]             
+
+    if stim_for_lag_samples.shape[0] == 0:
+        print(f"Zero samples after lagging for lag {lag}. Returning zeros.")
+        return np.zeros(num_pixels)
+    if stim_for_lag_samples.shape[0] != len(counts_for_lag):
+        print(f"Mismatch in samples after lagging for lag {lag}. " \
+              f"X has {stim_for_lag_samples.shape[0]}, y has {len(counts_for_lag)}. Returning zeros.")
+        return np.zeros(num_pixels)
+
+    model = GLM(
+        distr='poisson',
+        alpha=1.0,  # This is L1_ratio, 1.0 for pure Lasso
+        reg_lambda=reg_strength, # Regularization strength
+        max_iter=max_iter,
+        tol=tol,
+        learning_rate=learning_rate,
+        verbose=True)
+
+    try:
+        print(f"Fitting Lasso for lag {lag}, reg_strength {reg_strength} with X shape {stim_for_lag_samples.shape} and y shape {counts_for_lag.shape}")
+        model.fit(stim_for_lag_samples, counts_for_lag)
+        # NEW logic to access beta_:
+        if model.beta_ is not None:
+            # For pyglmnet.GLM with a single reg_lambda, beta_ is expected to be 1D (n_features,)
+            if model.beta_.ndim == 1:
+                print(f"Fit successful for lag {lag}, reg_strength {reg_strength}. Beta shape: {model.beta_.shape}")
+                return model.beta_.flatten() # .flatten() is mostly for consistency here
+            elif model.beta_.ndim == 2 and model.beta_.shape[1] == 1:
+                # Some pyglmnet versions/forks might still wrap a single lambda result in a 2D array
+                print(f"Fit successful (beta_ is 2D) for lag {lag}, reg_strength {reg_strength}. Beta shape: {model.beta_.shape}")
+                return model.beta_[:, 0].flatten()
+            else:
+                # This case would be unexpected
+                print(f"Unexpected beta_ shape from pyglmnet.GLM: {model.beta_.shape} for lag {lag}, reg_strength {reg_strength}")
+                return np.zeros(num_pixels)
+        else:
+            # This case means fit might have run, but beta_ was not set (problematic)
+            print(f"Fit completed but model.beta_ is None for lag {lag}, reg_strength {reg_strength}.")
+            return np.zeros(num_pixels)
+    except Exception as e:
+        print(f"Error during pyglmnet fit for lag {lag}, reg_strength {reg_strength}: {e}")
+        return np.zeros(num_pixels)
+
+#%%
+
+#%%
 # ------------------------------------------
 # Fit the receptive field with time lags of
 # 0 to 4 frames separately (the same as before)
 # with sklearn or pyglmnet for different values
 # of alpha (1 pt)
 # ------------------------------------------
-
+import numpy as np
+np.float = np.float64
 delta = [0, 1, 2, 3, 4]
 alphas= []
+w_hat_lasso = np.zeros((s.shape[0], len(delta)))  # Initialize for lasso results
+for lag in delta:
+    print(f"Fitting Lasso RF for lag {lag}...")
+    # Fit the Lasso regularized receptive field
+    w_lasso = fit_lasso_rf(s, spike_counts_per_frame, lag=lag, 
+                           reg_strength=0.1, 
+                           tol=1e-2,
+                           max_iter=10000, 
+                           learning_rate=1e-4)
+    
+    # Store the result in w_hat for plotting later
+    w_hat_lasso[:, lag] = w_lasso
 
 # %%
 # ------------------------------------------
-# plot the estimated receptive fields (1 pt)
+# Plot the estimated receptive fields (1 pt)
 # ------------------------------------------
-
-
 fig, ax = plt.subplots(
     len(alphas), len(delta), figsize=(10, 4), constrained_layout=True
-)# add plot
+) # add plot
+
 
 # %% [markdown]
 # _Explanation (1 pt)_
@@ -887,9 +1003,13 @@ fig, ax = plt.subplots(
 # %% [markdown]
 # ## Bonus Task (Optional): Spike Triggered Average
 # 
-# Instead of the Maximum Likelihood implementation above, estimate the receptive field using the spike triggered average.
-# Use it to increase the temporal resolution of your receptive field estimate.
-# Perform the SVD analysis for your STA-based receptive field and plot the spatial and temporal kernel as in Task 3.
+# Instead of the Maximum Likelihood implementation above, 
+# estimate the receptive field using the spike triggered average.
+# Use it to increase the temporal resolution of your 
+# receptive field estimate.
+#
+# Perform the SVD analysis for your STA-based receptive field and 
+# plot the spatial and temporal kernel as in Task 3.
 # 
 # **Questions:**
 # 1. Explain how / why you chose a specific time delta.
@@ -898,6 +1018,10 @@ fig, ax = plt.subplots(
 # _Grading: 1 BONUS Point._
 # 
 # 
-# _BONUS Points do not count for this individual coding lab, but sum up to 5% of your **overall coding lab grade**. There are 4 BONUS points across all coding labs._
+# _BONUS Points do not count for this individual 
+# coding lab, but sum up to 5% of your **overall coding lab grade**. 
+# There are 4 BONUS points across all coding labs._
 
 
+
+# %%
