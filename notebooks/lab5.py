@@ -504,14 +504,25 @@ def deriv_negloglike_lnp(
 # implementations are correct. 
 # It might be helpful to validate the gradient before 
 # you run your optimizer.
-
 # %%
 # Check gradient
+import scipy
+import scipy.optimize
 
+scipy.optimize.check_grad(
+    lambda w:  negloglike_lnp(w, c=c, s=s, dt=dt, R=R),
+    lambda w:  deriv_negloglike_lnp(w, c =c , s=s, dt=dt, R=R),
+    np.zeros(225) * .001,  # initial guess for w 
+) 
+ 
 # %% [markdown]
 # Fit receptive field maximizing the log likelihood.
 # 
-# The scipy.optimize package also has suitable functions for optimization. If you generate a large number of samples, the fitted receptive field will look more similar to the true receptive field. With more samples, the optimization takes longer, however.
+# The scipy.optimize package also has suitable 
+# functions for optimization. If you generate a large number of 
+# samples, the fitted receptive field will look more 
+# similar to the true receptive field. With more samples, 
+# the optimization takes longer, however.
 
 # %%
 # ------------------------------------------
@@ -534,15 +545,26 @@ def deriv_negloglike_lnp(
 mosaic = [["True", "Estimated"]]
 fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(12, 5))
 
-# make sure to add a colorbar. 'bwr' is a reasonable choice for the cmap.
+# make sure to add a colorbar. 'bwr' is a reasonable choice for the 
+# cmap.
 
 # %% [markdown]
 # # Task 2: Apply to real neuron
 # 
-# Download the dataset for this task from Ilias (`nds_cl_5_data.mat`). It contains a stimulus matrix (`s`) in the same format you used before and the spike times. In addition, there is an array called `trigger` which contains the times at which the stimulus frames were swapped.
+# Download the dataset for this task from Ilias (`nds_cl_5_data.mat`). 
+# It contains a stimulus matrix (`s`) in the same format you used 
+# before and the spike times. 
+#
+# In addition, there is an array called `trigger` which contains 
+# the times at which the stimulus frames were swapped.
 # 
-# * Generate an array of spike counts at the same temporal resolution as the stimulus frames
-# * Fit the receptive field with time lags of 0 to 4 frames. Fit them one lag at a time (the ML fit is very sensitive to the number of parameters estimated and will not produce good results if you fit the full space-time receptive field for more than two time lags at once). 
+# * Generate an array of spike counts at the same temporal resolution as 
+# the stimulus frames
+# * Fit the receptive field with time lags of 0 to 4 frames. Fit them 
+# one lag at a time (the ML fit is very sensitive to the 
+# number of parameters estimated and will not produce good results 
+# if you fit the full space-time receptive field for more than two 
+# time lags at once). 
 # * Plot the resulting filters
 # 
 # *Grading: 3.5 pts*
