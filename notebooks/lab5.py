@@ -974,7 +974,7 @@ import numpy as np
 np.float = np.float64
 
 # Initialize for lasso results
-alphas = np.logspace(-4, -1, 4)
+alphas =  np.logspace(-5, -3, 8)
 delta = [0, 1, 2, 3, 4]
 # Initialize for lasso results
 w_hat_lasso_for_alpha = np.zeros((s.shape[0], len(delta), len(alphas)))  # (num_pixels, num_lags, num_alphas) 
@@ -988,21 +988,70 @@ for alpha in alphas:
         w_lasso = fit_lasso_rf(s, spike_counts_per_frame, 
                             lag=lag, 
                             reg_strength=alpha, 
-                            tol=1e-2,
+                            tol=1e-4,
                             max_iter=1000, 
                             learning_rate=1e-4)
         # Store the result in w_hat for plotting later
-        #w_hat_lasso[:, lag] = w_lasso
         w_hat_lasso_for_alpha[:, lag, np.where(alphas == alpha)[0][0]] = w_lasso
 
+#%%
+# 1. Determine global symmetric color limits
+if w_hat_lasso_for_alpha.size > 0: # Ensure there's data
+    global_max_abs_val = np.max(np.abs(w_hat_lasso_for_alpha))
+    global_vmin = -global_max_abs_val
+    global_vmax = global_max_abs_val
+else:
+    print("Warning: w_hat_lasso_all_results is empty. Setting default color limits.")
+    global_vmin = -0.5
+    global_vmax = 0.5
+    print("Using vmin:", global_vmin, "and vmax:", global_vmax)
 # %%
 # ------------------------------------------
 # Plot the estimated receptive fields (1 pt)
 # ------------------------------------------
 fig, ax = plt.subplots(
-    len(alphas), len(delta), figsize=(10, 4), constrained_layout=True
+    len(alphas), len(delta), figsize=(20, 20), constrained_layout=True
 ) # add plot
 
+#%%
+fig, ax = plt.subplots(
+    len(alphas), len(delta),
+    figsize=(max(10, 3 * len(delta)), max(4, 2.5 * len(alphas))), # Adjust figsize dynamically
+    constrained_layout=True,
+    squeeze=False # Ensures ax is always a 2D array
+)
+
+# Variable to store one of the image objects for the colorbar
+mappable = None
+
+# 3. Loop and plot with shared color limits
+for i, alpha_val in enumerate(alphas): # i is the row index (for alphas)
+    for j, lag_val in enumerate(delta):   # j is the column index (for lags)
+        # Access the correct RF: pixels, lag_index, alpha_index
+        # Assuming w_hat_lasso_all_results is (num_pixels, num_lags, num_alphas)
+        rf_data_flat = w_hat_lasso_for_alpha[:, j, i]
+        rf_image = rf_data_flat.reshape((Dx_real, Dy_real))
+
+        im = ax[i, j].imshow(
+            rf_image,
+            cmap='bwr',
+            vmin=global_vmin, # Use global vmin
+            vmax=global_vmax  # Use global vmax
+        )
+        mappable = im # Store the last (or any) mappable object
+
+        ax[i, j].set_title(f"Alpha: {alpha_val:.5f}\nLag: {lag_val}")
+        ax[i, j].axis("off") # Hide axes for better visualization
+
+# 4. Add a single colorbar for the entire figure
+if mappable is not None:
+    fig.colorbar(mappable, ax=ax.ravel().tolist(), shrink=0.6, aspect=20*len(alphas)*0.6, pad=0.02)
+else:
+    print("No images were plotted, so no colorbar will be added.")
+
+plt.suptitle(f"Lasso Regularized Receptive Fields (Task 4)", fontsize=16, y=1.03 if len(alphas)>1 else 1.0) # Adjust y for suptitle
+plt.savefig("../images/lasso_rfs_shared_cbar.png") 
+plt.show()
 
 # %% [markdown]
 # _Explanation (1 pt)_
