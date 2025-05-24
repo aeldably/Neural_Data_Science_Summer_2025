@@ -972,20 +972,28 @@ def fit_lasso_rf(
 # ------------------------------------------
 import numpy as np
 np.float = np.float64
+
+# Initialize for lasso results
+alphas = np.logspace(-4, -1, 4)
 delta = [0, 1, 2, 3, 4]
-alphas= []
-w_hat_lasso = np.zeros((s.shape[0], len(delta)))  # Initialize for lasso results
-for lag in delta:
-    print(f"Fitting Lasso RF for lag {lag}...")
-    # Fit the Lasso regularized receptive field
-    w_lasso = fit_lasso_rf(s, spike_counts_per_frame, lag=lag, 
-                           reg_strength=0.1, 
-                           tol=1e-2,
-                           max_iter=10000, 
-                           learning_rate=1e-4)
+# Initialize for lasso results
+w_hat_lasso_for_alpha = np.zeros((s.shape[0], len(delta), len(alphas)))  # (num_pixels, num_lags, num_alphas) 
+for alpha in alphas:
+    print(f"Fitting Lasso RF for alpha {alpha}...")
+# Initialize the array to store the receptive fields 
     
-    # Store the result in w_hat for plotting later
-    w_hat_lasso[:, lag] = w_lasso
+    for lag in delta:
+        print(f"Fitting Lasso RF for lag {lag}...")
+        # Fit the Lasso regularized receptive field
+        w_lasso = fit_lasso_rf(s, spike_counts_per_frame, 
+                            lag=lag, 
+                            reg_strength=alpha, 
+                            tol=1e-2,
+                            max_iter=1000, 
+                            learning_rate=1e-4)
+        # Store the result in w_hat for plotting later
+        #w_hat_lasso[:, lag] = w_lasso
+        w_hat_lasso_for_alpha[:, lag, np.where(alphas == alpha)[0][0]] = w_lasso
 
 # %%
 # ------------------------------------------
@@ -1004,24 +1012,26 @@ fig, ax = plt.subplots(
 # ## Bonus Task (Optional): Spike Triggered Average
 # 
 # Instead of the Maximum Likelihood implementation above, 
-# estimate the receptive field using the spike triggered average.
+# estimate the receptive field using the 
+# spike triggered average.
+#
 # Use it to increase the temporal resolution of your 
 # receptive field estimate.
 #
-# Perform the SVD analysis for your STA-based receptive field and 
-# plot the spatial and temporal kernel as in Task 3.
+# Perform the SVD analysis for your STA-based receptive field 
+# and plot the spatial and temporal kernel as in Task 3.
 # 
 # **Questions:**
 # 1. Explain how / why you chose a specific time delta.
-# 2. Reconsider what you know about STA. Is it suitable to use STA for this data? Why/why not? What are the (dis-)advantages of using the MLE based method from above?
+#
+# 2. Reconsider what you know about STA. Is it suitable to use STA for this data? Why/why not? What are 
+# the (dis-)advantages of using the MLE based method from above ?
 # 
 # _Grading: 1 BONUS Point._
-# 
 # 
 # _BONUS Points do not count for this individual 
 # coding lab, but sum up to 5% of your **overall coding lab grade**. 
 # There are 4 BONUS points across all coding labs._
-
 
 
 # %%
