@@ -737,12 +737,13 @@ plt.show()
 # ...
 
 # %% [markdown]
+# 
 # # Task 3: Separate space/time components
 # 
 # The receptive field of the neuron can be decomposed into a 
-# spatial and a temporal component. Because of the way we computed 
-# them, both are independent and the resulting spatio-temporal 
-# component is thus called separable. 
+# spatial and a temporal component. 
+# Because of the way we computed them, both are independent 
+# and the resulting spatio-temporal component is thus called separable. 
 # As discussed in the lecture, you can use 
 # singular-value decomposition to separate these two: 
 # 
@@ -750,9 +751,17 @@ plt.show()
 # W = u_1 s_1 v_1^T
 # $$
 # 
-# Here $u_1$ and $v_1$ are the singular vectors belonging to the 1st singular value $s_1$ and provide a long rank approximation of W, the array with all receptive fields. It is important that the mean is subtracted before computing the SVD.  
+# Here $u_1$ and $v_1$ are the singular vectors belonging to 
+# the 1st singular value $s_1$ and provide a 
+# low rank approximation of W, the array with all receptive fields. 
+#
+# It is important that the mean is subtracted before computing the SVD.  
 # 
-# Plot the first temporal component and the first spatial component. You can use a Python implementation of SVD. The results can look a bit puzzling, because the sign of the components is arbitrary.
+# Plot the first temporal component and the first spatial component. 
+# You can use a Python implementation of SVD. 
+#
+# The results can look a bit puzzling, because the sign of the 
+# components is arbitrary.
 # 
 # *Grading: 1.5 pts*
 
