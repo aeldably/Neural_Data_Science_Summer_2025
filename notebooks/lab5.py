@@ -512,7 +512,7 @@ import scipy.optimize
 scipy.optimize.check_grad(
     lambda w:  negloglike_lnp(w, c=c, s=s, dt=dt, R=R),
     lambda w:  deriv_negloglike_lnp(w, c =c , s=s, dt=dt, R=R),
-    np.zeros(225) * .001,  # initial guess for w 
+    np.zeros(225) * .001,  # Initial guess for w 
 ) 
  
 # %% [markdown]
@@ -558,40 +558,43 @@ fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(12, 5))
 # In addition, there is an array called `trigger` which contains 
 # the times at which the stimulus frames were swapped.
 # 
-# * Generate an array of spike counts at the same temporal resolution as 
-# the stimulus frames
-# * Fit the receptive field with time lags of 0 to 4 frames. Fit them 
+# 1. Generate an array of spike counts at the same temporal resolution as 
+# the stimulus frames.
+# 2. Fit the receptive field with time lags of 0 to 4 frames. Fit them 
 # one lag at a time (the ML fit is very sensitive to the 
 # number of parameters estimated and will not produce good results 
 # if you fit the full space-time receptive field for more than two 
 # time lags at once). 
-# * Plot the resulting filters
+# 3. Plot the resulting filters.
 # 
 # *Grading: 3.5 pts*
-# 
-
 # %%
 var = io.loadmat("../data/nds_cl_5_data.mat")
 
 # t contains the spike times of the neuron
-t = var["DN_spiketimes"].flatten()
+t = var["DN_spiketimes"].flatten() # (5500,)
 
 # trigger contains the times at which the stimulus flipped
-trigger = var["DN_triggertimes"].flatten()
+trigger = var["DN_triggertimes"].flatten() # (1489,)
 
 # contains the stimulus movie with black and white pixels
 s = var["DN_stim"]
 s = s.reshape((300, 1500))  # the shape of each frame is (20, 15)
-s = s[:, 1 : len(trigger)]
+s = s[:, 1 : len(trigger)] # (300, 1488)
 
 # %% [markdown]
 # Create vector of spike counts
+
+num_frames = s.shape[1] # Number of stimulus frames you are using
+bin_edges = trigger[:num_frames + 1] # Use the first num_frames+1 trigger times as bin edges
 
 # %%
 # ------------------------------------------
 # Bin the spike counts at the same temporal
 # resolution as the stimulus (0.5 pts)
 # ------------------------------------------
+# spike_counts_per_frame.shape : (1488,)
+spike_counts_per_frame, _ = np.histogram(t, bins=bin_edges)
 
 # %% [markdown]
 # Fit receptive field for each frame separately
@@ -604,11 +607,108 @@ s = s[:, 1 : len(trigger)]
 # The final receptive field (`w_hat`) should
 # be in the shape of (Dx * Dy, 5)
 # ------------------------------------------
-
 # specify the time lags
 delta = [0, 1, 2, 3, 4]
 
+
+def fit_rf_for_lag(
+    lag_value: int,
+    full_stimulus_matrix: np.ndarray, # This is your s_real_data
+    full_counts_vector: np.ndarray,   # This is your c_binned
+    num_pixels: int,
+    dt_param: float,
+    R_param: float,
+    initial_w_guess: np.ndarray = None,
+    optimizer_method: str = 'L-BFGS-B'
+) -> np.ndarray:
+    """
+    Fits a receptive field for a specific time lag.
+
+    Args:
+        lag_value (int): The time lag (e.g., 0, 1, 2, ...).
+        full_stimulus_matrix (np.ndarray): The complete stimulus matrix (pixels, total_frames).
+        full_counts_vector (np.ndarray): The complete binned spike counts (total_frames,).
+        num_pixels (int): Number of pixels in the RF.
+        dt_param (float): Time bin size delta_t.
+        R_param (float): Rate parameter R.
+        initial_w_guess (np.ndarray, optional): Initial guess for w. Defaults to small random.
+        optimizer_method (str, optional): Optimization method for scipy.optimize.minimize.
+
+    Returns:
+        np.ndarray: The fitted receptive field for the given lag, or array of zeros if failed.
+    """
+    print(f"Attempting to fit receptive field for lag: {lag_value}...")
+
+    if initial_w_guess is None:
+        current_initial_w_guess = np.random.rand(num_pixels) * 0.01
+    else:
+        current_initial_w_guess = initial_w_guess.copy() # Use a copy to avoid modification if it's passed around
+
+    # --- Prepare lagged stimulus and corresponding spike counts ---
+    if lag_value == 0:
+        stimulus_for_fit = full_stimulus_matrix
+        counts_for_fit = full_counts_vector
+    else:
+        if lag_value >= full_stimulus_matrix.shape[1] or lag_value >= len(full_counts_vector):
+            print(f"Lag value {lag_value} is too large for the data length. Skipping.")
+            return np.zeros(num_pixels) # Return zeros or raise error
+
+        # Stimulus at t-lag_value predicts spikes at t
+        stimulus_for_fit = full_stimulus_matrix[:, :-lag_value]
+        counts_for_fit = full_counts_vector[lag_value:]
+
+    # Ensure the number of time points match
+    num_time_points_for_fit = len(counts_for_fit)
+    # Adjust stimulus to match if it's longer (can happen if full_stimulus_matrix was longer than full_counts_vector initially)
+    stimulus_for_fit = stimulus_for_fit[:, :num_time_points_for_fit]
+
+
+    if stimulus_for_fit.shape[1] != len(counts_for_fit):
+        print(f"Critical Error: Mismatch in time points for lag {lag_value} after adjustment: "
+              f"Stimulus has {stimulus_for_fit.shape[1]} time points, "
+              f"Counts have {len(counts_for_fit)} time points. Skipping fit.")
+        return np.zeros(num_pixels) # Or raise an error
+
+    if stimulus_for_fit.shape[1] == 0:
+        print(f"Skipping lag {lag_value} due to zero effective time points after lagging.")
+        return np.zeros(num_pixels)
+
+    # --- Perform the optimization ---
+    try:
+        optimization_result = scipy.optimize.minimize(
+            negloglike_lnp,          # Your function from Task 1
+            current_initial_w_guess,
+            args=(counts_for_fit, stimulus_for_fit, dt_param, R_param), # c, s, dt, R
+            jac=deriv_negloglike_lnp,  # Your gradient function from Task 1
+            method=optimizer_method,
+            options={'maxiter': 500} # Example: set max iterations
+        )
+
+        if optimization_result.success:
+            fitted_w = optimization_result.x
+            print(f"Successfully fitted RF for lag {lag_value}.")
+            return fitted_w
+        else:
+            print(f"Optimization FAILED for lag {lag_value}: {optimization_result.message}")
+            return np.zeros(num_pixels) # Or a more specific error indicator
+
+    except Exception as e:
+        print(f"An error occurred during optimization for lag {lag_value}: {e}")
+        return np.zeros(num_pixels)
 # fit for each delay
+
+w_hat = np.zeros((300, 5))  # Initialize the array to store the receptive fields
+for i, lag in enumerate(delta):
+    w_hat[:, i] = fit_rf_for_lag(
+        lag_value=lag,
+        full_stimulus_matrix=s,
+        full_counts_vector=spike_counts_per_frame,
+        num_pixels=300,  # 20 * 15 = 300
+        dt_param=0.5,  # 500 ms
+        R_param=50,  # Rate parameter
+        initial_w_guess=None,  # Use default small random guess
+        optimizer_method='L-BFGS-B'  # Default method
+    )
 
 # %% [markdown]
 # Plot the frames one by one and explain what you see.
@@ -617,8 +717,19 @@ delta = [0, 1, 2, 3, 4]
 # --------------------------------------------
 # Plot all 5 frames of the fitted RFs (1 pt)
 # --------------------------------------------
+fig, ax = plt.subplot_mosaic(mosaic=[delta], 
+                             figsize=(10, 4), 
+                             constrained_layout=True)
 
-fig, ax = plt.subplot_mosaic(mosaic=[delta], figsize=(10, 4), constrained_layout=True)
+for i, lag in enumerate(delta):
+    ax[lag].imshow(w_hat[:, i].reshape((20, 15)), cmap="bwr", vmin=-.5, vmax=.5)
+    ax[lag].set_title(f"Lag {lag}")
+    ax[lag].axis("off")  # Hide axes for better visualization
+    # Add colorbar to each subplot
+    fig.colorbar(ax[lag].images[0], ax=ax[lag], orientation='vertical', fraction=0.046, pad=0.04)   
+    
+plt.suptitle("Fitted Receptive Fields for Different Time Lags", fontsize=16)
+plt.show()
 
 # %% [markdown]
 # _Explanation (1 pt)_
@@ -627,7 +738,12 @@ fig, ax = plt.subplot_mosaic(mosaic=[delta], figsize=(10, 4), constrained_layout
 # %% [markdown]
 # # Task 3: Separate space/time components
 # 
-# The receptive field of the neuron can be decomposed into a spatial and a temporal component. Because of the way we computed them, both are independent and the resulting spatio-temporal component is thus called separable. As discussed in the lecture, you can use singular-value decomposition to separate these two: 
+# The receptive field of the neuron can be decomposed into a 
+# spatial and a temporal component. Because of the way we computed 
+# them, both are independent and the resulting spatio-temporal 
+# component is thus called separable. 
+# As discussed in the lecture, you can use 
+# singular-value decomposition to separate these two: 
 # 
 # $$
 # W = u_1 s_1 v_1^T
