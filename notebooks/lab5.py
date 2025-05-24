@@ -449,7 +449,8 @@ def negloglike_lnp(
     term1 = np.sum(c * g)
     term2 = np.sum(rates)
     import scipy.special
-    term3 = np.sum(scipy.special.gammaln(c + 1))
+    # log(c!) can be computed using gammaln, we use it because it is numerically more stable than np.log(np.math.factorial(c)) 
+    term3 = np.sum(scipy.special.gammaln(c + 1)) 
     if dt * R <= 0:
         return np.inf 
 
@@ -465,7 +466,11 @@ def negloglike_lnp(
 
 #%%
 def deriv_negloglike_lnp(
-    w: np.array, c: np.array, s: np.array, dt: float = 0.1, R: float = 50
+    w: np.array, 
+    c: np.array, 
+    s: np.array, 
+    dt: float = 0.1, 
+    R: float = 50
 ) -> np.array:
     """Implements the gradient of the negative log-likelihood of the LNP model
 
@@ -481,12 +486,17 @@ def deriv_negloglike_lnp(
       gradient of the negative log likelihood with respect to w
 
     """
-
     # --------------------------------------------------------------
     # Implement the gradient with respect to the receptive field `w`
     # --------------------------------------------------------------
-
-    pass
+    # Implement the formula:
+    #       \frac{d -L(\omega)}{d\omega} = -\sum_t (s_t (c_t - r_t))
+    w = w.flatten()
+    g = np.dot(w.T, s)  # or w @ s
+    rates = np.exp(g) * dt * R
+    # This computes sum_t s_t * (c_t - r_t) and results in (num_pixels,) 
+    df = s @ (c - rates) 
+    return -df.flatten()  
 
 # %% [markdown]
 # The helper function `check_grad` in `scipy.optimize` 
