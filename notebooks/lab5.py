@@ -770,18 +770,71 @@ plt.show()
 # Apply SVD to the fitted receptive field,
 # you can use either numpy or sklearn (0.5 pt)
 # --------------------------------------------
+def rank_one_approximation(W: np.ndarray) -> tuple:
+    """
+    Perform SVD on the mean-subtracted receptive field matrix W.
 
+    Args:
+        W (np.ndarray): The receptive field matrix (num_pixels, num_lags).
+
+    Returns:
+        tuple: U, s_values, Vt from the SVD decomposition.
+    """
+    # Mean subtract the receptive field matrix
+    W_mean_subtracted = W - np.mean(W, axis=0)
+    
+    # Perform SVD
+    U, s_values, Vt = np.linalg.svd(W_mean_subtracted, full_matrices=False)
+    
+    # Extract first spatial component u_1
+    u_1 = U[:, 0]
+    # Extract first temporal component v_1
+    v_1 = Vt[0, :]
+    # Extract first singular value s_1
+    s_1 = s_values[0]
+    
+    return u_1,s_1, v_1 
+
+u_1, s_1, v_1 = rank_one_approximation(w_hat)
+w_approx = u_1[:, np.newaxis] * s_1 * v_1[np.newaxis, :]
 
 
 # %%
 # -------------------------------------------------
 # Plot the spatial and temporal components (1 pt)
 # -------------------------------------------------
-
 fig, ax = plt.subplot_mosaic(
-    mosaic=[["Spatial", "Temporal"]], figsize=(10, 4), constrained_layout=True
-)
+    mosaic=[["Spatial", "Temporal"]], 
+    figsize=(10, 4), 
+    constrained_layout=True)
+
+Dx_real = 20
+Dy_real = 15
+spatial_component_2D = u_1.reshape((Dx_real, Dy_real))
+max_abs_val_spatial = np.max(np.abs(spatial_component_2D))
+im_spatial = ax["Spatial"].imshow(spatial_component_2D,
+                                      cmap='bwr', # Blue-white-red is good for RFs
+                                      vmin=-max_abs_val_spatial,
+                                      vmax=max_abs_val_spatial,
+                                      aspect='auto') # Adjust aspect as needed
+
+ax["Spatial"].set_title("First Spatial Component (u1)")
+ax["Spatial"].set_xticks([]) # Optional: remove ticks
+ax["Spatial"].set_yticks([]) # Optional: remove ticks
+fig.colorbar(im_spatial, ax=ax["Spatial"], orientation='vertical', fraction=0.046, pad=0.04)
+
+time_lags_for_plot = np.arange(len(delta)) # Should be [0, 1, 2, 3, 4]
+
+ax["Temporal"].plot(time_lags_for_plot, v_1, marker='o', linestyle='-')
+ax["Temporal"].set_title("First Temporal Component (v1)")
+ax["Temporal"].set_xlabel("Time Lag (frames)")
+ax["Temporal"].set_ylabel("Weight/Strength")
+ax["Temporal"].axhline(0, color='grey', linestyle='--', linewidth=0.7) # Add a zero line
+ax["Temporal"].set_xticks(time_lags_for_plot) # Ensure all lags are shown as ticks
 # add plot
+plt.suptitle("SVD Decomposition of Receptive Field", fontsize=16)
+plt.savefig("../images/svd_rf_components.png")
+plt.show()
 
 # %% [markdown]
 # # Task 4: Regularized receptive field
