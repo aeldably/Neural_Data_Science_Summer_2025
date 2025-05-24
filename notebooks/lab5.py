@@ -402,11 +402,17 @@ plt.show()
 # %% [markdown]
 # ### Implementation (3 pts)
 # 
-# Implement the negative log-likelihood of the LNP and its gradient with respect to the receptive field using the simplified equations you calculated earlier _(1 pt)_
-
+# Implement the negative log-likelihood of the 
+# LNP and its gradient with respect to the receptive 
+# field using the simplified equations you calculated 
+# earlier _(1 pt)_
 # %%
 def negloglike_lnp(
-    w: np.array, c: np.array, s: np.array, dt: float = 0.1, R: float = 50
+    w: np.array, 
+    c: np.array,  # observed spike counts
+    s: np.array,  # stimulus matrix (Dx * Dy, nT)
+    dt: float = 0.1, # duration of a frame in seconds
+    R: float = 50 # rate parameter (Hz, e.g. 50 Hz)
 ) -> float:
     """Implements the negative (!) log-likelihood of the LNP model
 
@@ -430,14 +436,34 @@ def negloglike_lnp(
       function value of the negative log likelihood at w
 
     """
-
     # ------------------------------------------------
     # Implement the negative log-likelihood of the LNP
     # ------------------------------------------------
+    # We derived 
+    # L(w) = \sum_t c_t w^Ts_t - \exp(w^T s_t) \Delta t \cdot R - \log(c_t!) + c_t \log(\Delta t \cdot R)
 
-    pass
+    w = w.flatten()
+    g = np.dot(w.T, s)  # or w @ s
+    rates = np.exp(g) * dt * R
+    
+    term1 = np.sum(c * g)
+    term2 = np.sum(rates)
+    import scipy.special
+    term3 = np.sum(scipy.special.gammaln(c + 1))
+    if dt * R <= 0:
+        return np.inf 
+
+    log_dt_R = np.log(dt * R)
+    term4 = np.sum(c * log_dt_R)
+ 
+    # Total log-likelihood L(w)
+    log_likelihood = term1 - term2 - term3 + term4
+ 
+    # Return the negative log-likelihood
+    return -log_likelihood
 
 
+#%%
 def deriv_negloglike_lnp(
     w: np.array, c: np.array, s: np.array, dt: float = 0.1, R: float = 50
 ) -> np.array:
@@ -463,7 +489,11 @@ def deriv_negloglike_lnp(
     pass
 
 # %% [markdown]
-# The helper function `check_grad` in `scipy.optimize` can help you to make sure your equations and implementations are correct. It might be helpful to validate the gradient before you run your optimizer.
+# The helper function `check_grad` in `scipy.optimize` 
+# can help you to make sure your equations and 
+# implementations are correct. 
+# It might be helpful to validate the gradient before 
+# you run your optimizer.
 
 # %%
 # Check gradient
