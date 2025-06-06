@@ -473,6 +473,9 @@ print(top_10_genes[::-1]) # [::-1] reverses the list to show highest first
 # 
 # _(3.5 pts)_
 
+sqare_root_counts = np.sqrt(normalized_counts)
+log_counts = np.log2(normalized_counts + 1)
+
 
 # %%
 # --------------------------------
