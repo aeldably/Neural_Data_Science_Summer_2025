@@ -238,6 +238,13 @@ plt.show()
 # _(2.5 pts)_
 variance = np.var(counts, axis=0)
 plt.plot(mean_expression, variance, 'o', alpha=0.5, label='Actual Data')
+lims = [
+    np.min([plt.xlim(), plt.ylim()]),  # find the min of the axes
+    np.max([plt.xlim(), plt.ylim()]),  # find the max of the axes
+]
+# Plot the y=x line
+plt.plot(lims, lims, 'r--', alpha=0.75, label='Poisson (Mean=Variance)')
+
 plt.xscale('log')
 plt.yscale('log')
 plt.xlabel('Mean expression')
@@ -250,6 +257,7 @@ plt.show()
 
 # unscaled
 plt.plot(mean_expression, variance, 'o', alpha=0.5, label='Actual Data')
+plt.plot(lims, lims, 'r--', alpha=0.75, label='Poisson (Mean=Variance)')
 plt.xlabel('Mean expression')
 plt.ylabel('Variance')
 plt.title('Mean-Variance Relationship (Unscaled)')
@@ -261,8 +269,6 @@ plt.show()
 # -------------------------------------------------------------------
 # Compute the variance of the expression counts of each gene - (0.5 pt)
 # -------------------------------------------------------------------
-variance_of_expression = np.var(counts, axis=1)
-print("Variance of expression for each gene:", variance_of_expression)
 # %%
 # -------------------------------------------------------------
 # Plot the mean-variance relationship on a log-log plot (1 pt)
@@ -317,9 +323,16 @@ plt.savefig("../images/lab7-mean_vs_fano.png", dpi=300, bbox_inches='tight')
 plt.show()
 # %% [markdown]
 # _Explanation (1 pt)_
-#  The red dashed line at Fano factor = 1 shows what you would expect if the gene counts followed a Poisson distribution (where variance = mean).
-# Your "Actual Data" points show that for genes with very low mean expression (on the far left), the Fano factor is close to 1.
-# However, as the mean expression increases, the Fano factor for most genes rises significantly above 1. This means the variance is much larger than the mean.
+#
+#  The red dashed line at Fano factor = 1 shows what you would 
+# expect if the gene counts followed a Poisson distribution 
+# (where variance = mean).
+#
+# Your "Actual Data" points show that for genes with very low 
+# mean expression (on the far left), the Fano factor is close to 1.
+# However, as the mean expression increases, 
+# the Fano factor for most genes rises significantly above 1. 
+# This means the variance is much larger than the mean.
 
 # %% [markdown]
 # ### 1.4. Histogram of sequencing depths
