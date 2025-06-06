@@ -230,13 +230,33 @@ plt.show()
 # %% [markdown]
 # ### 1.2. Mean-variance relationship
 # 
-# If the expression follows Poisson distribution, then the mean should 
-# be equal to the variance. Plot the mean-variance relationship and 
-# interpret the plot.
+# If the expression follows Poisson distribution, then the 
+# mean should be equal to the variance. 
+#
+# Plot the mean-variance relationship and interpret the plot.
 # 
 # _(2.5 pts)_
+variance = np.var(counts, axis=0)
+plt.plot(mean_expression, variance, 'o', alpha=0.5, label='Actual Data')
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel('Mean expression')
+plt.ylabel('Variance')
+plt.title('Mean-Variance Relationship')
+plt.grid(True, which="both", linestyle='--', linewidth=0.5)
+plt.legend()
+plt.savefig("../images/lab7-mean_vs_variance.png", dpi=300, bbox_inches='tight')
+plt.show()
 
-
+# unscaled
+plt.plot(mean_expression, variance, 'o', alpha=0.5, label='Actual Data')
+plt.xlabel('Mean expression')
+plt.ylabel('Variance')
+plt.title('Mean-Variance Relationship (Unscaled)')
+plt.grid(True, which="both", linestyle='--', linewidth=0.5)
+plt.legend()
+plt.savefig("../images/lab7-mean_vs_variance_unscaled.png", dpi=300, bbox_inches='tight')
+plt.show()
 # %%
 # -------------------------------------------------------------------
 # Compute the variance of the expression counts of each gene (0.5 pt)
