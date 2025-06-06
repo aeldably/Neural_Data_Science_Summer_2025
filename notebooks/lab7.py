@@ -19,7 +19,9 @@ import numpy as np
 import pylab as plt
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import seaborn as sns
+# Set the default style for seaborn
+sns.set_theme(style="whitegrid")
 # We recommend using openTSNE for experiments with t-SNE
 # https://github.com/pavlin-policar/openTSNE
 from openTSNE import TSNE
@@ -350,26 +352,56 @@ plt.show()
 # -------------------------------
 # Compute sequencing depth (0.5 pt)
 # -------------------------------
+# Calculate the sum of counts for each cell (row)
+sequencing_depths = np.sum(counts, axis=1)
 
 
 # %%
 # ------------------------------------------
 # Plot histogram of sequencing depths (1 pt)
 # ------------------------------------------
-
 fig, ax = plt.subplots(figsize=(6, 4))
+
+# Create the histogram
+ax.hist(sequencing_depths, bins=100)
+
+# Add labels and a title for clarity
+ax.set_xlabel("Sequencing Depth (Total Counts per Cell)")
+ax.set_ylabel("Number of Cells")
+ax.set_title("Distribution of Sequencing Depths")
+ax.grid(axis='y', linestyle='--', alpha=0.7)
+
+plt.savefig("../images/lab7-sequencing_depth_histogram.png", dpi=300, bbox_inches='tight')
+plt.show()
 
 # %% [markdown]
 # ### 1.5. Fano factors after normalization
 # 
-# Normalize counts by the sequencing depth of each cell and multiply by the median sequencing depth. Then make the same expression vs Fano factor plot as above. After normalization by sequencing depth, Fano factor should be closer to 1 (i.e. variance even more closely following the mean). This can be used for feature selection.
+# Normalize counts by the sequencing depth of each cell 
+# and multiply by the median sequencing depth. 
 # 
+# Then make the same expression vs Fano factor plot as above. 
+# After normalization by sequencing depth, Fano factor should be 
+# closer to 1 (i.e. variance even more 
+# closely following the mean). 
+#
+# This can be used for feature selection.
 # _(2.5 pts)_
+# 1. Get sequencing depth per cell
+sequencing_depths = np.sum(counts, axis=1)
+median_depth = np.median(sequencing_depths)
+
 
 # %%
 # -------------------------------------------------
-# compute normalized counts and fano factor (1 pt)
+# Compute normalized counts and fano factor (1 pt)
 # -------------------------------------------------
+normalized_counts = counts / sequencing_depths[:, np.newaxis] * median_depth
+
+mean_normalized = np.mean(normalized_counts, axis=0)
+variance_normalized = np.var(normalized_counts, axis=0)
+
+fano_normalized = variance_normalized / mean_normalized
 
 # %%
 # ----------------------------------------------------------
@@ -379,6 +411,18 @@ fig, ax = plt.subplots(figsize=(6, 4))
 
 fig, ax = plt.subplots(figsize=(6, 4))
 # add plot
+plt.scatter(mean_normalized, fano_normalized, alpha=0.5, label='Normalized Data')
+plt.xscale('log')
+plt.yscale('log')   
+plt.xlabel('Mean normalized expression')
+plt.ylabel('Fano factor (normalized)')  
+plt.title('Mean normalized expression vs. Fano factor (normalized)')
+plt.grid(True, which="both", linestyle='--', linewidth=0.5)
+plt.axhline(y=1, color='red', linestyle='--', label='Poisson Prediction (Fano = 1)')
+plt.legend()
+plt.savefig("../images/lab7-mean_vs_fano_normalized.png", dpi=300, bbox_inches='tight')
+plt.show()
+
 
 # %%
 #--------------------------------------------------------------------
@@ -386,30 +430,49 @@ fig, ax = plt.subplots(figsize=(6, 4))
 # Print them sorted by the Fano factor starting from the highest
 # Gene names are stored in the `genes` array
 #--------------------------------------------------------------------
+# Get the indices that would sort the fano_normalized array
+sorted_indices = np.argsort(fano_normalized)
+top_10_indices = sorted_indices[-10:]
+
+top_10_genes = genes[top_10_indices]
+
+print("Top 10 genes with the highest normalized Fano factor:")
+print(top_10_genes[::-1]) # [::-1] reverses the list to show highest first
 
 # %% [markdown]
 # # Task 2: Low dimensional visualization
 # 
 # In this task we will construct a two dimensional visualization of the data. 
 # First we will normalize the data with some variance stabilizing 
-# transformation and study the effect that different approaches have on the 
-# data. 
+# transformation and study the effect that different approaches 
+# have on the data. 
+#
 # Second, we will reduce the dimensionality of the data to a more 
 # feasible number of dimensions (e.g. $d=50$) using PCA. And last, 
 # we will project the PCA-reduced data to two dimensions using t-SNE.
 
 
-
 # %% [markdown]
 # ### 2.1. PCA with and without transformations
 # 
-# Here we look at the influence of variance-stabilizing transformations on PCA. We will focus on the following transformations: 
+# Here we look at the influence of variance-stabilizing 
+# transformations on PCA. We will focus on the 
+# following transformations: 
+#
 # - Square root (`sqrt(X)`): it is a variance-stabilizing transformation for the Poisson data. 
 # - Log-transform (`log2(X+1)`): it is also often used in the transcriptomic community. 
 # 
-# We will only work with the most important genes. For that, transform the counts into normalized counts (as above) and select all genes with normalized Fano factor above 3 and remove the rest. We will look at the effect that both transformations have in the PCA-projected data by visualizing the first two components. Interpret qualitatively what you see in the plot and compare the different embeddings making use of the ground truth clusters.
+# We will only work with the most important genes. 
+# For that, transform the counts into 
+# normalized counts (as above) and select all genes 
+# with normalized Fano factor above 3 and remove the rest. 
+# We will look at the effect that both transformations have in 
+# the PCA-projected data by visualizing the first two components. 
+# Interpret qualitatively what you see in the plot and compare the 
+# different embeddings making use of the ground truth clusters.
 # 
 # _(3.5 pts)_
+
 
 # %%
 # --------------------------------
