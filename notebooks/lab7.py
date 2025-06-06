@@ -473,10 +473,40 @@ print(top_10_genes[::-1]) # [::-1] reverses the list to show highest first
 # 
 # _(3.5 pts)_
 
-sqare_root_counts = np.sqrt(normalized_counts)
-log_counts = np.log2(normalized_counts + 1)
+highly_variable_mask = fano_normalized > 3
+filtered_counts = normalized_counts[:, highly_variable_mask]
 
+sqrt_transformed_counts = np.sqrt(filtered_counts)
+log_transformed_counts = np.log2(filtered_counts + 1)
 
+from sklearn.decomposition import PCA
+
+# Initialize PCA to find the top 50 components
+pca = PCA(n_components=50)
+
+# Apply PCA to each of the three datasets
+pca_raw = pca.fit_transform(filtered_counts)
+pca_sqrt = pca.fit_transform(sqrt_transformed_counts)
+pca_log = pca.fit_transform(log_transformed_counts)
+
+pca_results = [pca_raw, pca_sqrt, pca_log]
+titles = ["Normalized Counts (Raw)", "Square Root Transform", "Log2(X+1) Transform"]
+
+fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+
+for i, (data, title) in enumerate(zip(pca_results, titles)):
+    # Scatter plot of the first two principal components
+    # c=clusterColors[clusters] assigns the correct publication color to each cell
+    axs[i].scatter(data[:, 0], data[:, 1], c=clusterColors[clusters], s=5)
+    
+    axs[i].set_title(title)
+    axs[i].set_xlabel("Principal Component 1")
+    axs[i].set_ylabel("Principal Component 2")
+    axs[i].grid(linestyle='--', alpha=0.6)
+
+plt.tight_layout()
+plt.savefig("../images/lab7-pca_transformations.png", dpi=300, bbox_inches='tight')
+plt.show()
 # %%
 # --------------------------------
 # Select important genes (0.5 pts)
@@ -485,7 +515,7 @@ log_counts = np.log2(normalized_counts + 1)
 
 # %%
 # --------------------------------------
-# transform data and apply PCA (1 pt)
+# Transform data and apply PCA (1 pt)
 # --------------------------------------
 
 from sklearn.decomposition import PCA
