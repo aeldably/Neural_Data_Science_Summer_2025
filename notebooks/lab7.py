@@ -403,7 +403,7 @@ variance_normalized = np.var(normalized_counts, axis=0)
 
 fano_normalized = variance_normalized / mean_normalized
 
-# %%
+#%%
 # ----------------------------------------------------------
 # plot normalized counts and find the top 10 genes (1 pt)
 # hint: keep appropriate axis scaling in mind
@@ -512,7 +512,6 @@ plt.show()
 # Select important genes (0.5 pts)
 # --------------------------------
 
-
 # %%
 # --------------------------------------
 # Transform data and apply PCA (1 pt)
@@ -537,7 +536,14 @@ fig, axs = plt.subplots(1, 3, figsize=(9, 3))
 # %% [markdown]
 # ### 2.2. tSNE with and without transformations
 # 
-# Now, we will reduce the dimensionality of the PCA-reduced data further to two dimensions using t-SNE. We will use only $n=50$ components of the PCA-projected data. Plot the t-SNE embedding for the three versions of the data and interpret the plots. Do the different transformations have any effect on t-SNE?
+# Now, we will reduce the dimensionality of the PCA-reduced data 
+# further to two dimensions using t-SNE. We will use only $n=50$ 
+# components of the PCA-projected data. 
+#
+# Plot the t-SNE embedding for the three versions of the 
+# data and interpret the plots. 
+#
+# Do the different transformations have any effect on t-SNE?
 # 
 # _(1.5 pts)_
 
@@ -545,19 +551,54 @@ fig, axs = plt.subplots(1, 3, figsize=(9, 3))
 # -----------------------
 # Perform tSNE (0.5 pts)
 # -----------------------
+tsne = TSNE(
+    n_components=2,
+    perplexity=30,
+    metric="euclidean",
+    n_jobs=-1,
+    random_state=42,
+    verbose=False,
+)
+
+# Fit and transform each PCA-reduced dataset
+tsne_raw = tsne.fit(pca_raw)
+tsne_sqrt = tsne.fit(pca_sqrt)
+tsne_log = tsne.fit(pca_log)
 
 # %%
 # -----------------------------------------------
-# plot t-SNE embedding for each dataset (1 pt)
+# Plot t-SNE embedding for each dataset (1 pt)
 # -----------------------------------------------
+tsne_results = [tsne_raw, tsne_sqrt, tsne_log]
+titles = ["t-SNE on Normalized Counts", "t-SNE on Square Root Transform", "t-SNE on Log2(X+1) Transform"]
 
 fig, axs = plt.subplots(1, 3, figsize=(9, 3))
-# add plot
+# Loop through each t-SNE result and plot it
+for i, (data, title) in enumerate(zip(tsne_results, titles)):
+    # Create a scatter plot of the 2D t-SNE data
+    # Color each point by its ground-truth cluster identity
+    axs[i].scatter(data[:, 0], data[:, 1], c=clusterColors[clusters], s=5, alpha=0.8)
+    
+    # Set the title and labels
+    axs[i].set_title(title)
+    axs[i].set_xlabel("t-SNE 1")
+    axs[i].set_ylabel("t-SNE 2")
+    
+    # The axes on a t-SNE plot don't have a direct interpretation,
+    # so we can remove the tick marks for a cleaner look.
+    axs[i].set_xticks([])
+    axs[i].set_yticks([])
+
+plt.tight_layout()
+plt.savefig("../images/lab7-tsne_transformations.png", dpi=300, bbox_inches="tight")
+plt.show()
 
 # %% [markdown]
 # ### 2.3. Leiden clustering
 # 
-# Now we will play around with some clustering and see whether the clustering methods can produce similar results to the original clusters from the publication. We will apply Leiden clustering (closely related to the Louvain clustering), which is standard in the field and works well even for very large datasets. 
+# Now we will play around with some clustering and see whether the clustering methods can produce similar results to the original clusters from the publication. 
+# We will apply Leiden clustering (closely related to the 
+# Louvain clustering), which is standard in the field and works well even for very large datasets. 
 # 
 # Choose one representation of the data (best transformation based in your results from the previous task) to use further in this task and justify your choice. Think about which level of dimensionality would be sensible to use to perform clustering. Visualize in the two-dimensional embedding the resulting clusters and compare to the original clusters. 
 # 
