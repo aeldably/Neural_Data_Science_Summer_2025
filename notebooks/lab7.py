@@ -552,16 +552,17 @@ fig, axs = plt.subplots(1, 3, figsize=(9, 3))
 # Perform tSNE (0.5 pts)
 # -----------------------
 tsne = TSNE(
-    n_components=50,
+    n_components=2,
     perplexity=30,
     metric="euclidean",
     n_jobs=-1,
     random_state=42,
     verbose=False,
 )
-
+#%%
 # Fit and transform each PCA-reduced dataset
 tsne_raw = tsne.fit(pca_raw)
+#%%
 tsne_sqrt = tsne.fit(pca_sqrt)
 tsne_log = tsne.fit(pca_log)
 
