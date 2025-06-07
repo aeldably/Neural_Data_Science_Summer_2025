@@ -552,7 +552,7 @@ fig, axs = plt.subplots(1, 3, figsize=(9, 3))
 # Perform tSNE (0.5 pts)
 # -----------------------
 tsne = TSNE(
-    n_components=2,
+    n_components=50,
     perplexity=30,
     metric="euclidean",
     n_jobs=-1,
