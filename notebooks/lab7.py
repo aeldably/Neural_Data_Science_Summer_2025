@@ -564,6 +564,7 @@ tsne = TSNE(
 tsne_raw = tsne.fit(pca_raw)
 #%%
 tsne_sqrt = tsne.fit(pca_sqrt)
+#%%
 tsne_log = tsne.fit(pca_log)
 
 # %%
