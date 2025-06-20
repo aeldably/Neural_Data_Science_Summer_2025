@@ -341,34 +341,96 @@ morphometric_data = morphometric_data.values
 # the density maps globally using r_min_x/y/z and r_max_x/y/z and print them  for 
 # each direction. (1 pt)
 # ------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
+# Find the minimal and maximal x,y,z - coordinates of the reconstructions to normalize
+# the density maps globally using r_min_x/y/z and r_max_x/y/z and print them  for
+# each direction. (1 pt)
+# ------------------------------------------------------------------------------------
 
+
+def get_global_min_max(neurons: list[nt]) -> tuple:
+    """Calculate the global min and max coordinates for a list of neurons.
+
+    Args:
+        neurons (list[nt]): List of NeuronTree objects.
+
+    Returns:
+        tuple: Global min and max coordinates (min_x, max_x, min_y, max_y, min_z, max_z).
+    """
+    global_min_x, global_min_y, global_min_z = float("inf"), float("inf"), float("inf")
+    global_max_x, global_max_y, global_max_z = (
+        float("-inf"),
+        float("-inf"),
+        float("-inf"),
+    )
+
+    for neuron in neurons:
+        all_x = [data["pos"][0] for _, data in neuron.nodes(data=True)]
+        all_y = [data["pos"][1] for _, data in neuron.nodes(data=True)]
+        all_z = [data["pos"][2] for _, data in neuron.nodes(data=True)]
+
+        global_min_x = min(global_min_x, min(all_x))
+        global_max_x = max(global_max_x, max(all_x))
+
+        global_min_y = min(global_min_y, min(all_y))
+        global_max_y = max(global_max_y, max(all_y))
+
+        global_min_z = min(global_min_z, min(all_z))
+        global_max_z = max(global_max_z, max(all_z))
+
+    return (
+        global_min_x,
+        global_max_x,
+        global_min_y,
+        global_max_y,
+        global_min_z,
+        global_max_z,
+    )
+
+
+global_min_x, global_max_x, global_min_y, global_max_y, global_min_z, global_max_z = (
+    get_global_min_max(neurons)
+)
+# 5. Print the final results as requested by the task
+print(f"Global X range: {global_min_x} to {global_max_x}")
+print(f"Global Y range: {global_min_y} to {global_max_y}")
+print(f"Global Z range: {global_min_z} to {global_max_z}")
 # %%
 from morphopy.computation.feature_presentation import compute_density_maps
 
 config_global = dict(
-# ---------------------------------------------------------------------------------
-# complete the config dict and compute the z-density maps for each neuron (1 pts)
-# ---------------------------------------------------------------------------------
-    distance=,
-    n_bins_x=,
-    n_bins_y=,
-    n_bins_z=,
-    density=,
-    smooth=,
-    sigma=,
-    r_max_x=,
-    r_max_y=,
-    r_max_z=,
-    r_min_x=,
-    r_min_y=,
-    r_min_z=,
+    # ---------------------------------------------------------------------------------
+    # complete the config dict and compute the z-density maps for each neuron (1 pts)
+    # ---------------------------------------------------------------------------------
+    distance=1,
+    n_bins_x=20,  # Requirement: bin each direction into 20 bins
+    n_bins_y=20,  # Requirement: bin each direction into 20 bins
+    n_bins_z=20,  # Requirement: bin each direction into 20 bins
+    density=True,
+    smooth=True,
+    sigma=1,
+    # Use the globally calculated min/max values from the previous step
+    r_max_x=global_max_x,
+    r_max_y=global_max_y,
+    r_max_z=global_max_z,
+    r_min_x=global_min_x,
+    r_min_y=global_min_y,
+    r_min_z=global_min_z,
 )
 
-density_maps = 
 
+# Create a list of density maps by looping through each neuron
+# and calling the function on each one. This is the main fix.
+density_maps = [
+    compute_density_maps(neurontree=neuron, config_params=config_global)
+    for neuron in neurons
+]
+
+density_maps
+# Extract the z-density map from each dictionary in the list using the correct key ("z")
+# dm_z = [density_map["z"] for density_map in density_maps]
 # extract the z density map
-dm_z = 
-
+# dm_z = [density_map["z_density_map"] for density_map in density_maps]
 # %%
 # --------------------------------------------------------------------
 # plot the Z-density maps and their means sorted by class label (1 pt)
