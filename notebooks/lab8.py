@@ -237,13 +237,14 @@ from morphopy.computation.feature_presentation import compute_morphometric_stati
 # --------------------------------------------------------------------------
 # 1. extraction the morphometric statistics for the entire data set (0.5 pts)
 # --------------------------------------------------------------------------
+ms_list = [compute_morphometric_statistics(neuron) for neuron in neurons]
 
-ms_list = 
 # -----------------------------------------------------------------------------------
 # 2. concatenate data into one pd.DataFrame and set the `Cell_nr`` as index (0.5 pts)
 # -----------------------------------------------------------------------------------
-
-morphometric_statistics = 
+morphometric_statistics = pd.concat(ms_list, axis=0)
+morphometric_statistics.reset_index(inplace=True)
+morphometric_statistics.index.name = "Cell_nr"
 
 # %% [markdown]
 # Now let's visualize the data.
@@ -251,14 +252,32 @@ morphometric_statistics =
 # %%
 features = morphometric_statistics.columns.values
 
-fig, axes = plt.subplots(4, 7, figsize=(18, 7))
+fig, axes = plt.subplots(4, 7, figsize=(30, 10))
 axes = axes.flatten()
 
 # -----------------------------------------------------------
 # Create a scatter/strip plot for each morphometric statistic
 # showing how it varies across clusters. (2 pts)
 # -----------------------------------------------------------
+for feature, ax in zip(features, axes):
+    # Use seaborn's stripplot to show the distribution for each cluster
+    sns.stripplot(
+        x=labels["cluster"],  # Categorical data for the x-axis
+        y=morphometric_statistics[feature],  # Numerical data for the y-axis
+        ax=ax,  # Tell seaborn which subplot to draw on
+        palette=colors,  # Use the predefined color palette
+        s=3, # Make the points a bit smaller to avoid overplotting
+        alpha=0.7 # Add some transparency
+    )
+    # Set the title of the subplot to the name of the feature
+    ax.set_title(feature, fontsize=8)
+    ax.set_xlabel("") # Hide x-axis label for cleanliness
+    ax.set_ylabel("") # Hide y-axis label for cleanliness
+    ax.tick_params(axis='x', rotation=45) # Rotate cluster labels slightly
 
+# Improve the layout to prevent titles from overlapping
+plt.tight_layout()
+plt.show()
 
 # %% [markdown]
 # ### Questions (1 pt)
