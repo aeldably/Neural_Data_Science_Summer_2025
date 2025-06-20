@@ -426,17 +426,67 @@ density_maps = [
     for neuron in neurons
 ]
 
-density_maps
 # Extract the z-density map from each dictionary in the list using the correct key ("z")
-# dm_z = [density_map["z"] for density_map in density_maps]
-# extract the z density map
-# dm_z = [density_map["z_density_map"] for density_map in density_maps]
+dm_z = [density_map["z_proj"] for density_map in density_maps]
 # %%
 # --------------------------------------------------------------------
 # plot the Z-density maps and their means sorted by class label (1 pt)
 # Note: make sure the clusters are comparable.
 # --------------------------------------------------------------------
 
+def plot_density_maps_corrected(dm_z: list, labels: pd.Series, colors: list) -> None:
+    """
+    Plots the z-density maps for all neurons and their means, sorted by class label.
+    Args:
+        dm_z (list): List of density map dictionaries.
+        labels (pd.Series): Series containing cluster labels.
+        colors (list): List of colors for each cluster.
+    """
+    # THE FIX IS HERE: Extract the array from the 'data' key of each dictionary.
+    density_data_list = [item["data"] for item in dm_z]
+    df = pd.DataFrame(density_data_list)
+    df["cluster"] = labels.values
+
+    # Get the unique, sorted cluster labels to iterate through
+    unique_clusters = sorted(df["cluster"].unique())
+
+    # Create a grid of subplots
+    fig, axes = plt.subplots(3, 5, figsize=(18, 10), sharex=True, sharey=True)
+    axes = axes.flatten()
+
+    # Loop through each cluster and its corresponding subplot axis
+    for i, cluster_id in enumerate(unique_clusters):
+        if i >= len(axes) or i >= len(colors):
+            break
+
+        ax = axes[i]
+        cluster_maps = df[df["cluster"] == cluster_id].drop("cluster", axis=1)
+        # Plot all individual density maps for the cluster
+        for row_idx in range(len(cluster_maps)):
+            ax.plot(
+                cluster_maps.iloc[row_idx].values,
+                color=colors[i],
+                alpha=0.15,
+                linewidth=1,
+            )
+
+        # Calculate and plot the mean density map
+        mean_density = cluster_maps.mean()
+        ax.plot(mean_density.values, color=colors[i], alpha=1.0, linewidth=3)
+
+        ax.set_title(f"Cluster {int(cluster_id)}")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    # Add overall labels and title
+    fig.supxlabel("Z-axis Bin Number")
+    fig.supylabel("Density")
+    fig.suptitle("Z-Density Profiles by Cluster (Individual and Mean)", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show()
+
+
+plot_density_maps_corrected(dm_z, labels["cluster"], colors)
 # %% [markdown]
 # ### Questions (1 pt)
 # 
